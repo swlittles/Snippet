@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.3.0
+
+- Added Sparkle updates: Check for Updates in the menu bar and Settings, optional daily checks, and download/install/relaunch.
+- Added gentle update reminders and last-check information.
+- Sign update feeds and archives; verify downloads before extraction and retain Developer ID signing and notarization.
+- Keep automatic updates disabled in Snippet Dev.
+
 ## 3.2.2
 
 - Preserve the app signature when configuring the installer’s Finder appearance.

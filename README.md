@@ -36,7 +36,7 @@ For a stable release:
 4. Enable clipboard history in Settings if you want to remember copies.
 5. Enable Snippet in **System Settings → Privacy & Security → Accessibility** for direct paste and optional keyword expansion.
 
-A ZIP and SHA-256 checksums accompany each release. See [installation, updates, and troubleshooting](docs/INSTALL.md). Updates are manual; there is no automatic updater yet.
+A ZIP and SHA-256 checksums accompany each release. See [installation, updates, and troubleshooting](docs/INSTALL.md). From 3.3.0 onward, use **Check for Updates…** in the menu bar or Settings → Updates. Optional daily checks notify you when a signed update is available. Versions 3.2.x need one manual upgrade.
 
 ## Use it
 

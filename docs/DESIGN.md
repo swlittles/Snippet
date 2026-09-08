@@ -29,6 +29,6 @@ The calculator uses a small expression parser with numeric functions and persist
 - Capture and expansion are opt-in.
 - OS permission checks remain authoritative.
 - No general app launcher, plugin engine, command execution, or workflow automation.
-- No automatic updates yet; installation and updates use GitHub release assets.
+- Sparkle handles signed updates from GitHub Releases. Optional daily checks are quiet; users choose when to install. Development builds never start the updater.
 
 These limits keep the app small and make its behavior easier to inspect. They also mean it is not a secret store, a full Alfred replacement, or a cross-device clipboard.

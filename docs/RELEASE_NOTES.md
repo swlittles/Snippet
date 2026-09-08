@@ -1,10 +1,13 @@
 A native macOS clipboard, snippet, and calculator launcher. Requires macOS 13 or newer; one universal app supports Apple Silicon and Intel.
 
-### What’s new in 3.2.2
+### What’s new in 3.3.0
 
-- A polished, compact installer with Retina artwork and a clear drag-to-Applications layout. No loose Markdown files.
-- Local source builds now run as Snippet Dev, with separate data, settings, permissions, and a distinct icon.
-- Fixed preferences initialization at startup and added startup verification for both build variants.
+- **Check for Updates…** in the menu bar and Settings → Updates.
+- Optional daily update checks, quiet reminders, and last-check information.
+- Native download, install, and relaunch with signed feed and archive verification.
+- Local Snippet Dev builds stay separate and never install production updates.
+
+If you’re on 3.2.x, install this version manually once. Future updates can be installed from inside Snippet.
 
 ### Install
 
@@ -14,6 +17,6 @@ These stable assets are Developer ID signed and Apple notarized for team `KQFYGC
 
 Enable clipboard capture in Settings if wanted. Direct paste and optional keyword expansion require macOS Accessibility permission. When upgrading from an ad-hoc development build, you may need to refresh Snippet's Accessibility entry once.
 
-Quit the old app before replacing it. Your local library is stored outside the app bundle. Updates are manual; there is no automatic updater.
+Quit the old app before replacing it. Your local library is stored outside the app bundle. After this installation, use Check for Updates for future releases.
 
 See the repository's installation guide, privacy document, and changelog for details. Intel/macOS 13 cross-compilation is checked; the full hardware/OS runtime matrix has not yet been tested.

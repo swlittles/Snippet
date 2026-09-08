@@ -23,7 +23,11 @@ Direct paste and keyword expansion need Accessibility permission. Click “Enabl
 3. Download the new stable release and replace the app in Applications.
 4. Reopen it. Your data is stored outside the app bundle and remains in place.
 
-There is no built-in update checker or automatic updater. GitHub release notifications can tell you when updates are available.
+Starting with 3.3.0, choose **Check for Updates…** from Snippet’s menu bar menu or **Settings → Updates**. Sparkle checks the signed feed, shows release notes, downloads the update, and offers to install and relaunch. Your library lives outside the app and is preserved.
+
+Enable **Automatically check for updates** in Settings for daily checks. It defaults to off; updates are installed only when you choose. Background reminders appear in the menu and Updates settings without taking keyboard focus. The Settings panel also shows the last check time. A manual check reports when you are up to date or when the server cannot be reached.
+
+Versions 3.2.x require one manual download to gain the updater. Snippet Dev does not contact the feed or install production updates. Run the release app from Applications, not directly from a mounted DMG.
 
 ## Accessibility says enabled, but paste is denied
 

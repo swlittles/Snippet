@@ -19,6 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     let calculator = CalculatorStore()
     let theme = ThemeStore()
     let shortcuts = ShortcutStore()
+    let updates = UpdateService()
     var activeGlobal: KeyBinding?
     var clipboard: ClipboardService!
     var expansion: ExpansionService!
@@ -76,6 +77,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         shortcuts.registerGlobal = { [weak self] binding in self?.registerGlobal(binding) }
         shortcuts.didChange = { [weak self] in self?.configureMenus() }
         if let error = registerGlobal(shortcuts[.toggle]) { hotkeyMessage = error; shortcuts.error = error }
+        updates.beforeUserCheck = { [weak self] in
+            self?.model.settings = false
+            self?.hide(restoreFocus: false)
+        }
+        updates.availabilityChanged = { [weak self] in self?.configureMenus() }
+        updates.start()
         configureMenus()
         NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self else { return event }
@@ -113,6 +120,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let main = NSMenu()
         let appItem = NSMenuItem(); let appMenu = NSMenu(title: AppEnvironment.current.name)
         appMenu.addItem(menuItem(.settings, selector: #selector(settings)))
+        if updates.enabled { appMenu.addItem(updates.menuItem()) }
         appMenu.addItem(.separator()); appMenu.addItem(menuItem(.quit, selector: #selector(quit)))
         appItem.submenu = appMenu; main.addItem(appItem)
         let editItem = NSMenuItem(); let edit = NSMenu(title: "Edit")
@@ -128,6 +136,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let open = NSMenuItem(title: "Open " + AppEnvironment.current.name + "    " + shortcuts.label(.toggle), action: #selector(show), keyEquivalent: ""); open.target = self; menu.addItem(open)
         let capture = NSMenuItem(title: "Save Clipboard as Snippet", action: #selector(capture), keyEquivalent: ""); capture.target = self; menu.addItem(capture)
         menu.addItem(menuItem(.settings, selector: #selector(settings)))
+        if updates.enabled { menu.addItem(updates.menuItem()) }
         menu.addItem(.separator())
         let access = NSMenuItem(title: "Enable Accessibility…", action: #selector(accessibility), keyEquivalent: ""); access.target = self; menu.addItem(access)
         let folder = NSMenuItem(title: "Show Data Folder", action: #selector(dataFolder), keyEquivalent: ""); folder.target = self; menu.addItem(folder)

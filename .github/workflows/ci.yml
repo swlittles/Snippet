@@ -30,7 +30,7 @@ jobs:
           else
             app="dist/Snippet.app"; bundle=local.snippet.app
           fi
-          codesign --verify --strict "$app"
+          codesign --verify --deep --strict "$app"
           executable=$(/usr/libexec/PlistBuddy -c 'Print CFBundleExecutable' "$app/Contents/Info.plist")
           lipo "$app/Contents/MacOS/$executable" -verify_arch arm64 x86_64
           "$app/Contents/MacOS/$executable" --verify-environment

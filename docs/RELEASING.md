@@ -72,7 +72,7 @@ The default signed mode requires credentials before building. Output goes to `re
 
 ## Current limitations
 
-There is no automatic updater, App Store distribution, or Intel/macOS 13 runtime test farm. CI cross-compiles both architectures and runs the logic suite on its macOS runner. A build passing CI is not proof of Accessibility/paste behavior in every third-party app.
+There is no App Store distribution or Intel/macOS 13 runtime test farm. CI cross-compiles both architectures and runs the logic suite on its macOS runner. A build passing CI is not proof of Accessibility/paste behavior in every third-party app.
 
 ## Installer design
 
@@ -87,3 +87,13 @@ bash scripts/package-dmg.sh "$PWD/release-build/Snippet.app" "$PWD/release-build
 ```
 
 Open the resulting DMG in Finder and check typography, icon alignment, and the Applications destination before tagging a release.
+
+## Sparkle update distribution
+
+Sparkle 2.9.6 is pinned through SwiftPM and its binary checksum. `build.sh` embeds and signs the framework and its helpers before signing the app. Production starts Sparkle; development never starts it. Automatic checks default to off; installation requires user action.
+
+The stable feed URL is `https://github.com/swlittles/Snippet/releases/latest/download/appcast.xml`. Each release includes its own signed feed pointing to that version’s immutable notarized DMG. GitHub’s latest-release redirect advances the feed only when the release is published. Never mark a legacy release lacking an appcast as latest.
+
+Configure `SPARKLE_ED_PRIVATE_KEY` as an Actions secret (the base64 seed exported by Sparkle’s `generate_keys`). Keep a secure backup outside the repo. The corresponding public key is embedded as `SUPublicEDKey`; do not replace or regenerate it during ordinary releases. `scripts/update-feed.sh` generates the signed feed after notarization, embeds release notes, and checks version and asset URLs. Feed and download signatures are required, with archive verification before extraction. Do not edit a signed feed after generation.
+
+Versions before 3.3.0 need one manual upgrade. To exercise a complete update, retain an older updater-enabled app in an isolated test location, publish a newer signed build, then use Check for Updates and verify installation and relaunch. Also check no-update, offline failure, disabled development behavior, and preference persistence. Never lower version numbers in published artifacts for testing.

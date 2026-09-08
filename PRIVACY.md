@@ -1,6 +1,6 @@
 # Privacy
 
-Snippet is a local macOS app. Its app code has no network requests, accounts, cloud sync, analytics, advertising, or telemetry. Apple notarization and GitHub downloads are distribution services, not app data services.
+Snippet stores your library locally. It has no accounts, cloud sync, analytics, advertising, or telemetry. The Sparkle updater contacts GitHub over HTTPS when you check for updates or enable optional daily checks. GitHub and its download hosts receive ordinary connection information such as your IP address and HTTP client metadata. Clipboard contents, snippets, calculations, and shortcuts are never included in update requests. Sparkle system profiling is disabled. Development builds do not start the updater.
 
 ## Stored information
 
