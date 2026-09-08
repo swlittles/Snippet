@@ -1,0 +1,12 @@
+.build/
+dist/
+release-build/
+release-assets/
+.DS_Store
+.env
+.env.*
+*.p12
+*.p8
+*.key
+*.mobileprovision
+*.provisionprofile

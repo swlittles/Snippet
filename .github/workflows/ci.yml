@@ -1,0 +1,24 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Validate shell scripts
+        run: for script in scripts/*.sh; do bash -n "$script"; done
+      - name: Test behavior
+        run: bash scripts/test.sh
+      - name: Build universal app
+        env:
+          SNIPPET_UNIVERSAL: '1'
+        run: bash scripts/build.sh
+      - name: Verify bundle
+        run: |
+          codesign --verify --strict dist/Snippet.app
+          lipo dist/Snippet.app/Contents/MacOS/Snippet -verify_arch arm64 x86_64
