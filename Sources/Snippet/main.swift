@@ -13,7 +13,7 @@ final class LauncherPanel: NSPanel {
     }
 }
 
-final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDelegate {
     let store = Store()
     let history = History()
     let calculator = CalculatorStore()
@@ -32,6 +32,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var previousApp: NSRunningApplication?
     var model: LauncherModel!
     var hotkeyMessage = ""
+    private var trackingStatusMenu: NSMenu?
+    private var menuOutsideClickMonitor: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -98,6 +100,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         show()
     }
     func handleKeyEvent(_ event: NSEvent) -> Bool {
+        // Escape and arrow keys belong to AppKit while a menu is tracking.
+        guard trackingStatusMenu == nil else { return false }
         if shortcuts.consumeToggleRelease(event) { return true }
         guard event.type == .keyDown else { return false }
         if shortcuts.capture(event) { return true }
@@ -132,6 +136,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         return item
     }
     func configureMenus() {
+        trackingStatusMenu?.cancelTracking()
         let main = NSMenu()
         let appItem = NSMenuItem(); let appMenu = NSMenu(title: AppEnvironment.current.name)
         appMenu.addItem(menuItem(.settings, selector: #selector(settings)))
@@ -156,9 +161,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let access = NSMenuItem(title: "Enable Accessibility…", action: #selector(accessibility), keyEquivalent: ""); access.target = self; menu.addItem(access)
         let folder = NSMenuItem(title: "Show Data Folder", action: #selector(dataFolder), keyEquivalent: ""); folder.target = self; menu.addItem(folder)
         menu.addItem(.separator()); menu.addItem(menuItem(.quit, selector: #selector(quit)))
+        menu.delegate = self
         self.status.menu = menu
     }
-    func toggle() { if panel.isVisible { hide() } else { show() } }
+    func menuWillOpen(_ menu: NSMenu) {
+        guard menu === status.menu else { return }
+        trackingStatusMenu = menu
+        // An accessory app may still be inactive when its status item is clicked.
+        // Give the native menu focus and explicitly cancel when a click goes to another app.
+        NSApp.activate(ignoringOtherApps: true)
+        if let monitor = menuOutsideClickMonitor { NSEvent.removeMonitor(monitor) }
+        menuOutsideClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak menu] _ in
+            menu?.cancelTracking()
+        }
+    }
+    func menuDidClose(_ menu: NSMenu) {
+        guard menu === trackingStatusMenu else { return }
+        trackingStatusMenu = nil
+        if let monitor = menuOutsideClickMonitor { NSEvent.removeMonitor(monitor) }
+        menuOutsideClickMonitor = nil
+        shortcuts.releaseToggle()
+    }
+    func applicationDidResignActive(_ notification: Notification) { trackingStatusMenu?.cancelTracking() }
+    func toggle() { trackingStatusMenu?.cancelTracking(); if panel.isVisible { hide() } else { show() } }
     @objc func show() {
         if !panel.isVisible {
             let front = NSWorkspace.shared.frontmostApplication
@@ -190,7 +215,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool { show(); return true }
     func windowDidResignKey(_ notification: Notification) {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-            guard let self, !self.panel.isKeyWindow, self.model.editing == nil, self.model.editingClip == nil, !self.model.settings, !self.model.workspaceOpen, self.model.templateRequest == nil,
+            guard let self, self.trackingStatusMenu == nil, !self.panel.isKeyWindow, self.model.editing == nil, self.model.editingClip == nil, !self.model.settings, !self.model.workspaceOpen, self.model.templateRequest == nil,
                   NSWorkspace.shared.frontmostApplication?.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return }
             self.hide(restoreFocus: false)
         }
