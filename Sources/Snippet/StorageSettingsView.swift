@@ -30,7 +30,6 @@ struct StorageSettingsView: View {
                 Text("5,000").tag(5000)
                 Text("10,000").tag(10000)
             }.pointerCursor()
-            Text("Favorites do not count toward either limit. Lowering a limit can permanently remove ordinary clips.").font(.caption).foregroundStyle(theme.secondary)
             Button("Save cleanup rules") {
                 if removalCount > 0 { confirmCleanup = true } else { save() }
             }.disabled(!hasChanges).pointerCursor()
