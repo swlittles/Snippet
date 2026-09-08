@@ -58,7 +58,7 @@ The keyboard shortcuts elsewhere in this document describe defaults. Use the lab
 
 ## Calculator
 
-Press **Command–3** for Calculator. Type an expression into the search field or use the keypad. **Return** or **=** calculates and saves a result; **Command–Return** copies the result without closing the calculator. History remembers the latest 200 calculations across launches, including angle mode. Click a history item to reuse its expression, or its copy icon to copy the saved result. Clear history with confirmation.
+Press **Command–3** for Calculator. Type an expression into the search field or use the keypad. **Return** or **=** calculates and saves a result; **Command–Return** copies the result without closing the calculator. History remembers the saved calculations across launches, including angle mode. Click a history item to reuse its expression, or its copy icon to copy the saved result. Clear history with confirmation.
 
 Supported syntax:
 
@@ -112,4 +112,8 @@ If you have a persistent code-signing identity installed, set `SNIPPET_SIGNING_I
 
 Open Settings → Storage to choose **Forever** or an age limit, and **Unlimited** or an ordinary-clip count limit. Defaults are Forever and Unlimited, including when upgrading from earlier releases. Save cleanup rules to apply them; if existing clips would be removed, a confirmation shows the count. Favorites and snippets are excluded. Previously expired clips cannot be recovered by changing the rules.
 
-Data is stored on your Mac, not in a hosted account or iCloud. No cloud subscription or account is required. Calculator history still keeps its most recent 200 calculations; clipboard cleanup settings only apply to ordinary clips.
+Data is local by default. Optional iCloud Drive folder sync is available in Workspace. No Snippet account is required. Calculation history is kept until cleared; clipboard cleanup settings only apply to ordinary clips.
+
+## Workspace, Markdown and sync
+
+See [Workspace and Markdown](WORKSPACE.md) for smart templates, developer tools, image OCR, paste queues, collections, quicklinks, import/export, and optional iCloud Drive folder sync. Open Workspace with Cmd–K.

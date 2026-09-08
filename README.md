@@ -5,7 +5,7 @@
 
 Snippet is a native Mac menu-bar app for finding copied text, reusing saved snippets, and doing quick calculations without leaving your keyboard. Press **Option–Space**, search, then **Return** to paste into the app you were using.
 
-No account. No cloud service. No analytics. Your library stays on your Mac.
+No account or analytics. Your library is local by default, with optional folder-based iCloud Drive sync.
 
 ## Why it exists
 
@@ -13,14 +13,14 @@ You copy a link, copy something else, and lose the link. You type the same reply
 
 | Problem | What Snippet does |
 | --- | --- |
-| The clipboard only remembers your latest copy | Search a local history of copied plain text |
+| The clipboard only remembers your latest copy | Search a local history of copied text and images, with local OCR |
 | Useful text disappears after cleanup | Star favorites to keep them indefinitely |
 | Repeated replies, addresses, or commands take time to retype | Save named snippets with tags and optional `;keywords` |
 | A copied clip needs a correction before reuse | Edit clips and snippets directly with Cmd–E |
 | Switching tools interrupts your flow | Open a hotkey panel, paste, and return to your previous app |
 | You need a calculation you made earlier | Use the calculator and its persistent history |
 
-Inspired by Alfred’s keyboard-first workflow; an independent project, not affiliated with Alfred. Snippet focuses on clipboard text, snippets, and calculations. It is not a general application launcher or workflow automation engine.
+Inspired by Alfred’s keyboard-first workflow; an independent project, not affiliated with Alfred. Snippet brings clipboard history, reusable templates, Markdown, calculations, quicklinks, and local developer tools into one native panel.
 
 ## Download and install
 
@@ -52,11 +52,18 @@ A ZIP and SHA-256 checksums accompany each release. See [installation, updates, 
 | Cmd–E | Edit the selected clip or snippet |
 | Cmd–Shift–F | Toggle favorite |
 | Control–Tab / Control–Shift–Tab | Cycle sections |
+| Cmd–K | Workspace: tools, queue, quicklinks, collections, packs, sync |
+| Cmd–Shift–B | Add selected result to the paste queue |
+| Cmd–Shift–V | Paste the next queue item from the launcher |
 | Cmd–comma | Settings |
 
 Click a row’s **star** to favorite it or its **pencil** to edit. The star beside the section tabs filters to favorites. Favorites sort first and survive retention cleanup. Every keyboard command can be changed in **Settings → Shortcuts**.
 
 The calculator supports parentheses, scientific functions, powers, factorials, percentages, RAD/DEG modes, and `ans`. Appearance settings include five themes and custom native color pickers.
+
+New in 3.4: **smart snippet fields, Markdown previews and rich paste, image OCR, paste queues, collections, quicklinks, import/export, optional iCloud Drive folder sync, and local developer tools**. The calculator also handles `15% of 80`, `10 km to mi`, `72 f to c`, and `today + 7 days`.
+
+See the [Workspace and Markdown guide](docs/WORKSPACE.md) for examples, supported formats and sync behavior.
 
 Read the [full user guide](docs/USER_GUIDE.md) for keyword expansion, calculator syntax, and settings.
 
@@ -65,7 +72,7 @@ Read the [full user guide](docs/USER_GUIDE.md) for keyword expansion, calculator
 - Capture and keyword expansion start **off**.
 - Clipboard history has no age or count limit by default. Optional cleanup rules are in Settings → Storage. **Favorite clips are exempt from both limits.**
 - Clearing clipboard history keeps favorites and snippets. Individual removal deletes the selected clip.
-- Snippets remain until you delete them; the calculator remembers its latest 200 entries.
+- Snippets remain until you delete them; the calculator remembers its history until you clear it.
 - Data is stored as local JSON with owner-only file permissions. It is not encrypted by Snippet.
 - Known password apps and concealed/transient clipboard types are filtered, but this cannot detect every sensitive value. Snippet is not a password manager.
 

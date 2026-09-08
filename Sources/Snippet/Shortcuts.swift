@@ -4,13 +4,16 @@ import Carbon
 
 enum ShortcutContext { case launcher, calculator, editor, settings }
 enum ShortcutAction: String, CaseIterable, Identifiable, Codable {
-    case toggle, clipboard, snippets, calculator, nextSection, previousSection
+    case toggle, clipboard, snippets, calculator, nextSection, previousSection, workspace, enqueue, pasteNext
     case nextResult, previousResult, downResult, upResult, pasteResult, copyResult, newSnippet, saveSnippet, editSnippet, favorite, preview, settings, close
     case calculate, calculateEquals, copyCalculation, saveEditor, cancelEditor, closeSettings, quit
     case undo, redo, cut, copy, paste, selectAll
     var id: String { rawValue }
     var title: String {
         switch self {
+        case .workspace: return "Open Workspace"
+        case .enqueue: return "Add selected result to queue"
+        case .pasteNext: return "Paste next queued item"
         case .toggle: return "Open / close Snippet"
         case .clipboard: return "Show Clipboard"
         case .snippets: return "Show Snippets"
@@ -62,13 +65,16 @@ enum ShortcutAction: String, CaseIterable, Identifiable, Codable {
         case .saveEditor, .cancelEditor: return [.editor]
         case .closeSettings: return [.settings]
         case .calculate, .calculateEquals, .copyCalculation: return [.calculator]
-        case .clipboard, .snippets, .calculator, .nextSection, .previousSection, .newSnippet, .settings, .close: return [.launcher, .calculator]
+        case .workspace, .clipboard, .snippets, .calculator, .nextSection, .previousSection, .newSnippet, .settings, .close: return [.launcher, .calculator]
         default: return [.launcher]
         }
     }
     var standard: KeyBinding {
         let cmd = NSEvent.ModifierFlags.command, shift = NSEvent.ModifierFlags.shift
         switch self {
+        case .workspace: return .init(40, cmd)
+        case .enqueue: return .init(11, [.command, .shift])
+        case .pasteNext: return .init(9, [.command, .shift])
         case .toggle: return .init(49, AppEnvironment.current.isDevelopment ? [.control, .option] : .option)
         case .clipboard: return .init(18, cmd)
         case .snippets: return .init(19, cmd)

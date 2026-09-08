@@ -29,7 +29,105 @@ final class StoreTests {
         tests.testShortcuts()
         tests.testFocusedLauncherToggle()
         tests.testResultNavigation()
-        print("Passed 16 test groups: persistence, search, corruption, migration, history, expansion, capture, calculator, calculation history, themes/navigation, configurable shortcuts, result cycling")
+        try tests.testPowerTools()
+        try tests.testWorkspaceAndPacks()
+        try tests.testLibrarySync()
+        try tests.testImagePersistence()
+        print("Passed 20 test groups: persistence, search, corruption, migration, history, expansion, capture, calculator, calculation history, themes/navigation, configurable shortcuts, result cycling")
+    }
+    func testPowerTools() throws {
+        XCTAssertEqual(SnippetTemplate.fields("Hi {{name}} {{date}} {{name}} {{project}} {{date:MMMM}} {{cursor}}"), ["name", "project"])
+        let expanded = SnippetTemplate.expand("Hi {{name}}!{{cursor}} {{clipboard}}", values: ["name": "Ada"], clipboard: "👋")
+        XCTAssertEqual(expanded, ExpandedTemplate(text: "Hi Ada! 👋", cursorMoves: 2))
+        XCTAssertEqual(SnippetTemplate.expand("{{name}}", values: ["name": "{{cursor}}"]).text, "{{cursor}}")
+        XCTAssertEqual(try TextTool.base64Decode.apply(TextTool.base64Encode.apply("Hello 🌍")), "Hello 🌍")
+        XCTAssertEqual(try TextTool.unescape.apply(TextTool.escape.apply("a\n\"b")), "a\n\"b")
+        XCTAssertEqual(try TextTool.deduplicate.apply("a\nb\na"), "a\nb")
+        XCTAssertEqual(try TextTool.cleanURL.apply("https://example.com/?utm_source=test&q=a%26b&fbclid=x#end"), "https://example.com/?q=a%26b#end")
+        XCTAssertEqual(try TextTool.sha256.apply("abc"), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
+        XCTAssertEqual(try NaturalCalculator.evaluate("15% of 80")?.value, 12)
+        XCTAssertEqual(try NaturalCalculator.evaluate("2 gib to mib")?.value, 2048)
+        XCTAssertEqual(try NaturalCalculator.evaluate("32 f to c")?.value, 0)
+        XCTAssertEqual(try NaturalCalculator.evaluate("2024-02-28 + 1 day")?.display, "2024-02-29")
+        XCTAssertEqual(try NaturalCalculator.evaluate("2024-03-01 - 1 day")?.display, "2024-02-29")
+        do { _ = try NaturalCalculator.evaluate("10 kg to km"); preconditionFailure("Accepted incompatible units") } catch {}
+        do { _ = try TextTool.json.apply("{bad}"); preconditionFailure("Accepted invalid JSON") } catch {}
+        XCTAssertEqual(MarkdownBlock.parse("# Heading\n```swift\nlet x = 1\n```\n- [x] Done").count, 3)
+        XCTAssertTrue(MarkdownBlock.parse("```\n**literal**").first!.code)
+        XCTAssertEqual(MarkdownBlock.parse("| Name | Value |\n| --- | --- |\n| A | B |").first?.table, [["Name", "Value"], ["A", "B"]])
+        let bold = MarkdownBlock.attributed("**Bold**")
+        let font = bold.attribute(.font, at: 0, effectiveRange: nil) as! NSFont
+        XCTAssertTrue(NSFontManager.shared.traits(of: font).contains(.boldFontMask))
+    }
+    func testWorkspaceAndPacks() throws {
+        let url = directory.appendingPathComponent("workspace.json"), workspace = WorkspaceStore(url: url)
+        workspace.update { $0.collections = ["Work"]; $0.queue = [.init(title: "First", text: "1"), .init(title: "Second", text: "2")] }
+        workspace.move(workspace.data.queue[0].id, offset: 1)
+        XCTAssertEqual(WorkspaceStore(url: url).data.queue.map(\.text), ["2", "1"])
+        let link = Quicklink(title: "Search", destination: "https://example.com/?q={query}")
+        XCTAssertEqual(try link.url(query: "a&b #c").absoluteString, "https://example.com/?q=a%26b%20%23c")
+        do { _ = try Quicklink(title: "Bad", destination: "javascript:alert(1)").url(query: ""); preconditionFailure("Accepted executable scheme") } catch {}
+        let pack = SnippetPack(snippets: [.init(title: "Markdown", text: "# Hi", tags: "", collection: "Work", format: "markdown")], collections: ["Work"], quicklinks: [link])
+        let packURL = directory.appendingPathComponent("pack.json"); try WorkspaceStore.write(pack, to: packURL)
+        let loaded = try SnippetPack.read(packURL)
+        XCTAssertEqual(loaded.snippets, pack.snippets)
+        let alfred = directory.appendingPathComponent("alfred.json")
+        try Data(#"{"alfredsnippet":{"name":"Reply","snippet":"Hello","keyword":";hello"}}"#.utf8).write(to: alfred)
+        XCTAssertEqual(try SnippetPack.read(alfred).snippets.first?.expands, false)
+    }
+    func testLibrarySync() throws {
+        let shared = directory.appendingPathComponent("shared"); try FileManager.default.createDirectory(at: shared, withIntermediateDirectories: true)
+        func client(_ name: String) -> LibrarySync {
+            let root = directory.appendingPathComponent(name)
+            let defaults = UserDefaults(suiteName: "test.snippet.sync." + name + UUID().uuidString)!
+            return LibrarySync(store: Store(url: root.appendingPathComponent("snippets.json")), history: History(url: root.appendingPathComponent("history.json"), retention: { .init() }), workspace: WorkspaceStore(url: root.appendingPathComponent("workspace.json")), theme: ThemeStore(defaults: defaults), defaults: defaults, journalURL: root.appendingPathComponent("journal.json"), automatic: false)
+        }
+        let a = client("a"), b = client("b")
+        let item = SnippetItem(title: "Synced", text: "original", tags: "", favorite: true, collection: "Work", format: "markdown")
+        a.store.save(item); a.history.record("private clipboard", source: "Test")
+        a.theme.palette = ThemePalette.presets[2]
+        a.workspace.update { $0.collections = ["Work"] }; b.workspace.update { $0.collections = ["Personal"] }
+        a.connect(shared); b.connect(shared)
+        XCTAssertEqual(b.theme.palette, ThemePalette.presets[2])
+        XCTAssertEqual(b.workspace.data.collections, ["Personal", "Work"])
+        XCTAssertEqual(b.store.items.first?.text, "original")
+        XCTAssertTrue(b.history.clips.isEmpty)
+        var changed = b.store.items[0]; changed.text = "edited offline"; b.store.save(changed); b.sync(); a.sync()
+        XCTAssertEqual(a.store.items.first?.text, "edited offline")
+        b.store.delete(b.store.items[0]); b.sync(); a.sync()
+        XCTAssertTrue(a.store.items.isEmpty)
+        a.sync(); b.sync(); XCTAssertTrue(b.store.items.isEmpty)
+        a.shareClips = true; b.shareClips = true; a.sync(); b.sync()
+        XCTAssertEqual(b.history.clips.first?.text, "private clipboard")
+        // Corrupt shared data must never be replaced by a fresh empty document.
+        let remote = shared.appendingPathComponent("Snippet.sync.json")
+        let bad = Data("broken".utf8); try bad.write(to: remote)
+        a.sync(); XCTAssertEqual(try Data(contentsOf: remote), bad)
+        XCTAssertTrue(a.status.hasPrefix("Sync paused:"))
+    }
+    func testImagePersistence() throws {
+        let history = History(url: directory.appendingPathComponent("images/history.json"), retention: { .init(days: 1, limit: 1) })
+        let image = Clip(text: "", source: "Screenshot", date: Date(), imageName: UUID().uuidString + ".png")
+        XCTAssertTrue(history.appendImage(image)); history.toggleFavorite(image.id)
+        XCTAssertTrue(history.clips[0].favorite)
+        history.setRecognizedText("Searchable screenshot", id: image.id)
+        XCTAssertEqual(history.search("searchable").first?.id, image.id)
+        XCTAssertEqual(History(url: history.url).clips.first?.imageName, image.imageName)
+        let invalid = Clip(text: "", source: "Test", date: Date(), imageName: "../../secret.png")
+        XCTAssertEqual(history.imageURL(invalid), nil)
+        let rendered = NSImage(size: NSSize(width: 600, height: 100))
+        rendered.lockFocus()
+        NSColor.white.setFill(); NSRect(x: 0, y: 0, width: 600, height: 100).fill()
+        ("Snippet OCR 42" as NSString).draw(at: NSPoint(x: 20, y: 30), withAttributes: [.font: NSFont.systemFont(ofSize: 36), .foregroundColor: NSColor.black])
+        rendered.unlockFocus()
+        history.recordImage(rendered, source: "OCR test")
+        let captured = history.clips.first { $0.source == "OCR test" }!
+        XCTAssertTrue(FileManager.default.fileExists(atPath: history.imageURL(captured)!.path))
+        let deadline = Date().addingTimeInterval(15)
+        while Date() < deadline && history.clips.first(where: { $0.id == captured.id })?.text.isEmpty == true { RunLoop.current.run(until: Date().addingTimeInterval(0.05)) }
+        XCTAssertTrue(history.clips.first(where: { $0.id == captured.id })?.text.contains("Snippet OCR 42") == true)
+        history.remove(captured.id)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: history.imageURL(captured)!.path))
     }
     var directory: URL!
     func setUpWithError() throws {

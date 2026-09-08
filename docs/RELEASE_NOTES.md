@@ -1,9 +1,17 @@
 A native macOS clipboard, snippet, and calculator launcher. Requires macOS 13 or newer; one universal app supports Apple Silicon and Intel.
 
-### What’s new in 3.3.2
+### What’s new in 3.4.0
 
-- The configured launcher hotkey takes priority over text input, so the same shortcut opens and closes Snippet with search focused.
-- Cleaner Storage settings without the redundant favorites/limits note.
+- Workspace (Cmd–K) brings local developer tools, quicklinks, collections and snippet packs together.
+- Smart snippets prompt for fields and support date, clipboard, UUID and cursor placeholders.
+- Markdown previews and formatted paste, including code blocks and basic tables.
+- Image clipboard history with local text recognition and searchable thumbnails.
+- Reorderable paste queues with individual and combined text actions.
+- Unit conversions, natural percentages and date arithmetic; unlimited calculation history.
+- Optional iCloud Drive folder sync for your library, with a separate clipboard-sharing opt-in.
+- New shortcuts are configurable. Existing libraries migrate automatically.
+
+Sync is off until you choose a folder. Real iCloud delivery depends on macOS and has not been tested across two physical Macs. See the Workspace guide for supported Markdown syntax, cursor-placement behavior and conflict handling.
 
 From 3.3.0 or later, choose **Check for Updates…** to install this release. Versions 3.2.x require one manual upgrade to gain the updater.
 

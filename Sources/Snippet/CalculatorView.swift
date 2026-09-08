@@ -33,13 +33,13 @@ struct CalculatorView: View {
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(model.calcError ?? (model.calcResult == nil ? "Type an expression above" : "RESULT")).font(.system(size: 10, weight: .medium)).foregroundStyle(model.calcError == nil ? theme.secondary : .orange).lineLimit(1)
-                    Text(model.calcResult.map(Calculator.format) ?? "0").font(.system(size: 27, weight: .medium, design: .monospaced)).lineLimit(1).minimumScaleFactor(0.5).textSelection(.enabled)
+                    Text(model.calcDisplay ?? model.calcResult.map(Calculator.format) ?? "0").font(.system(size: 27, weight: .medium, design: .monospaced)).lineLimit(1).minimumScaleFactor(0.5).textSelection(.enabled)
                 }
                 Spacer()
                 Picker("Angles", selection: $model.degrees) { Text("RAD").tag(false); Text("DEG").tag(true) }.pickerStyle(.segmented).frame(width: 100).help("Angle unit for sin, cos, tan")
                 Button { model.copyCalculation() } label: { Image(systemName: "doc.on.doc") }.buttonStyle(PointerButtonStyle()).disabled(model.calcResult == nil).help("Copy result · " + shortcuts.label(.copyCalculation))
             }
-            Text("+ − × ÷  ^ powers  % ÷100  ! factorial · sin, cos, tan, log, ln, sqrt · pi, e, ans").font(.system(size: 9)).foregroundStyle(theme.secondary).lineLimit(1)
+            Text("Try 15% of 80 · 10 km to mi · 72 f to c · today + 7 days · sqrt(9)").font(.system(size: 9)).foregroundStyle(theme.secondary).lineLimit(1)
         }.padding(.horizontal, 20).padding(.vertical, 13)
     }
     func keyButton(_ key: String) -> some View {
@@ -64,6 +64,7 @@ struct CalculatorView: View {
                                 model.degrees = entry.degrees
                                 model.expression = entry.expression
                                 model.calcResult = entry.result
+                                model.calcDisplay = entry.display
                                 model.calcError = nil
                             } label: {
                                 VStack(alignment: .leading, spacing: 4) {

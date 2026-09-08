@@ -7,7 +7,8 @@ struct Calculation: Codable, Identifiable, Equatable {
     var result: Double
     var degrees: Bool
     var date = Date()
-    var formatted: String { Calculator.format(result) }
+    var display: String? = nil
+    var formatted: String { display ?? Calculator.format(result) }
 }
 
 final class CalculatorStore: ObservableObject {
@@ -21,12 +22,12 @@ final class CalculatorStore: ObservableObject {
         do { entries = try JSONDecoder().decode([Calculation].self, from: Data(contentsOf: self.url)) }
         catch { self.error = "Couldn’t read calculation history. The original file was preserved." }
     }
-    @discardableResult func record(expression: String, result: Double, degrees: Bool) -> Bool {
+    @discardableResult func record(expression: String, result: Double, degrees: Bool, display: String? = nil) -> Bool {
         var next = entries
-        let item = Calculation(expression: expression, result: result, degrees: degrees)
+        let item = Calculation(expression: expression, result: result, degrees: degrees, display: display)
         if let first = next.first, first.expression == expression && first.result == result && first.degrees == degrees { return true }
         next.insert(item, at: 0)
-        return persist(Array(next.prefix(200)))
+        return persist(next)
     }
     func clear() { _ = persist([]) }
     private func persist(_ next: [Calculation]) -> Bool {

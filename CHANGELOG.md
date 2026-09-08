@@ -1,5 +1,17 @@
 # Changelog
 
+## 3.4.0
+
+- Add Workspace with local text/developer tools, quicklinks, collections and import/export.
+- Add smart snippets with fill-in fields, date/clipboard/UUID variables and cursor placement.
+- Add native Markdown previews, basic tables and formatted RTF paste.
+- Capture copied images with local Vision OCR, thumbnails and recognized-text editing/copying.
+- Add a persistent, reorderable paste queue with individual and combined text actions.
+- Add natural percentages, unit/temperature conversions and date arithmetic; remove the calculation-history count cap.
+- Add explicit iCloud Drive folder sync with revisions, deletion tombstones and separately opt-in clipboard sharing.
+- Import Snippet packs, legacy libraries, Markdown and Alfred collections without overwriting existing snippets.
+- Add configurable Workspace and queue shortcuts; preserve existing library and preference formats.
+
 ## 3.3.2
 
 - Handle the launcher toggle before native text input, including when a field editor owns focus.

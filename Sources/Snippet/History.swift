@@ -7,10 +7,11 @@ struct Clip: Codable, Identifiable, Equatable {
     var source: String
     var date: Date
     var favorite = false
-    init(id: UUID = UUID(), text: String, source: String, date: Date, favorite: Bool = false) {
-        self.id = id; self.text = text; self.source = source; self.date = date; self.favorite = favorite
+    var imageName: String? = nil
+    init(id: UUID = UUID(), text: String, source: String, date: Date, favorite: Bool = false, imageName: String? = nil) {
+        self.id = id; self.text = text; self.source = source; self.date = date; self.favorite = favorite; self.imageName = imageName
     }
-    enum CodingKeys: String, CodingKey { case id, text, source, date, favorite }
+    enum CodingKeys: String, CodingKey { case id, text, source, date, favorite, imageName }
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         id = try values.decode(UUID.self, forKey: .id)
@@ -18,8 +19,9 @@ struct Clip: Codable, Identifiable, Equatable {
         source = try values.decode(String.self, forKey: .source)
         date = try values.decode(Date.self, forKey: .date)
         favorite = try values.decodeIfPresent(Bool.self, forKey: .favorite) ?? false
+        imageName = try values.decodeIfPresent(String.self, forKey: .imageName)
     }
-    var title: String { String(text.split(separator: "\n", omittingEmptySubsequences: true).first.map(String.init)?.prefix(90) ?? "Text".prefix(90)) }
+    var title: String { String(text.split(separator: "\n", omittingEmptySubsequences: true).first.map(String.init)?.prefix(90) ?? (imageName == nil ? "Text" : "Image").prefix(90)) }
 }
 
 /// Zero means unlimited. Retention is a local preference, never a product quota.
@@ -70,9 +72,9 @@ final class History: ObservableObject {
     func record(_ text: String, source: String, now: Date = Date()) {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, text.utf8.count <= 100_000 else { return }
         // Re-copying keeps the favorite's identity and protection, including edited duplicates.
-        var clip = clips.first { $0.text == text && $0.favorite } ?? clips.first { $0.text == text } ?? Clip(text: text, source: source, date: now)
+        var clip = clips.first { $0.imageName == nil && $0.text == text && $0.favorite } ?? clips.first { $0.imageName == nil && $0.text == text } ?? Clip(text: text, source: source, date: now)
         clip.date = now; clip.source = source
-        var next = clips.filter { $0.id != clip.id && ($0.text != text || $0.favorite) }
+        var next = clips.filter { $0.id != clip.id && ($0.imageName != nil || $0.text != text || $0.favorite) }
         next.insert(clip, at: 0)
         persist(retained(next, now: now))
     }
@@ -82,7 +84,7 @@ final class History: ObservableObject {
     }
     @discardableResult func update(_ item: Clip) -> Bool {
         guard let index = clips.firstIndex(where: { $0.id == item.id }),
-              !item.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              (!item.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || item.imageName != nil),
               item.text.utf8.count <= 100_000 else { return false }
         var next = clips
         next[index].text = item.text
@@ -96,12 +98,22 @@ final class History: ObservableObject {
     }
     func remove(_ id: UUID) { persist(clips.filter { $0.id != id }) }
     func clear() { persist(clips.filter(\.favorite)) }
+    @discardableResult func replace(_ next: [Clip]) -> Bool { persist(next) }
+    @discardableResult func appendImage(_ clip: Clip) -> Bool { persist(retained([clip] + clips, now: Date())) }
+    func setRecognizedText(_ text: String, id: UUID) {
+        guard var clip = clips.first(where: { $0.id == id }), clip.text.isEmpty else { return }
+        clip.text = text; _ = update(clip)
+    }
     @discardableResult private func persist(_ next: [Clip]) -> Bool {
         guard error == nil else { return false }
         do {
             try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             try JSONEncoder().encode(next).write(to: url, options: .atomic)
             try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+            let kept = Set(next.compactMap(\.imageName))
+            for clip in clips where clip.imageName != nil && !kept.contains(clip.imageName!) {
+                if let image = imageURL(clip) { try? FileManager.default.removeItem(at: image) }
+            }
             clips = next
             return true
         } catch { self.error = "Couldn’t save clipboard history: \(error.localizedDescription)"; return false }
