@@ -27,6 +27,7 @@ jobs:
         with:
           ref: ${{ github.event.inputs.tag || github.ref }}
           persist-credentials: false
+          fetch-depth: 0
       - name: Validate release version
         run: |
           version=$(cat VERSION)
@@ -54,8 +55,7 @@ jobs:
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create "$RELEASE_TAG" release-assets/* --verify-tag --title "Snippet $RELEASE_TAG" --notes-file docs/RELEASE_NOTES.md --latest
+        run: bash scripts/publish-release.sh
       - name: Remove temporary credentials
         if: always()
         run: |

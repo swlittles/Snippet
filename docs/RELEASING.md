@@ -50,7 +50,7 @@ The release job imports the certificate into an ephemeral runner Keychain, remov
 5. The Release workflow tests, signs, notarizes, packages, preserves CI artifacts, and publishes a GitHub Release with DMG, ZIP, and SHA-256 checksums. It cannot silently downgrade to an unsigned stable build.
 6. Verify downloads from the actual release, including a fresh Gatekeeper-enabled Mac. Test both architectures and oldest supported macOS before claiming that compatibility matrix was runtime-validated.
 
-If credentials are missing or notarization fails, fix setup and rerun the workflow. Manual dispatch accepts an existing version tag. If a release with that tag already exists, publication fails rather than overwriting public assets; inspect it deliberately before retrying. Don't move tags used by published releases.
+If credentials are missing or notarization fails, fix setup and rerun the workflow. Manual dispatch accepts an existing version tag. An existing draft for that tag is completed after verification. If the release is already published, publication fails rather than overwriting public assets; inspect it deliberately before retrying. Don't move tags used by published releases.
 
 ## Local signed release
 
