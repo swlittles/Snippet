@@ -17,3 +17,11 @@ else
 fi
 tiffutil -cathidpicheck "$ART/background.png" "$ART/background@2x.png" -out "$ART/background.tiff"
 "$TOOLS/bin/dmgbuild" -s scripts/dmg-settings.py -D app="$APP" -D background="$ART/background.tiff" Snippet "$DESTINATION"
+
+# Validate the copied app too: Finder metadata must not invalidate its seal.
+MOUNT=$(mktemp -d "$PWD/.build/dmg-check.XXXXXX")
+trap 'hdiutil detach "$MOUNT" >/dev/null 2>&1 || true; rmdir "$MOUNT" 2>/dev/null || true; rm -rf "$ART"' EXIT
+hdiutil attach -readonly -nobrowse -mountpoint "$MOUNT" "$DESTINATION" >/dev/null
+codesign --verify --strict "$MOUNT/Snippet.app"
+hdiutil detach "$MOUNT" >/dev/null
+rmdir "$MOUNT"

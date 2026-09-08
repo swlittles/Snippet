@@ -1,6 +1,6 @@
 A native macOS clipboard, snippet, and calculator launcher. Requires macOS 13 or newer; one universal app supports Apple Silicon and Intel.
 
-### What’s new in 3.2.1
+### What’s new in 3.2.2
 
 - A polished, compact installer with Retina artwork and a clear drag-to-Applications layout. No loose Markdown files.
 - Local source builds now run as Snippet Dev, with separate data, settings, permissions, and a distinct icon.

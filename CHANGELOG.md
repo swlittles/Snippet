@@ -1,5 +1,10 @@
 # Changelog
 
+## 3.2.2
+
+- Preserve the app signature when configuring the installer’s Finder appearance.
+- Verify the packaged app signature inside the DMG before publication.
+
 ## 3.2.1
 
 - Redesigned the DMG with a compact branded Retina background, drag-to-Applications layout, and no loose documentation files.

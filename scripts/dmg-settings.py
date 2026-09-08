@@ -5,7 +5,6 @@ format = "UDZO"
 filesystem = "HFS+"
 files = [defines["app"]]
 symlinks = {"Applications": "/Applications"}
-hide_extensions = ["Snippet.app"]
 icon = os.path.join(defines["app"], "Contents", "Resources", "Snippet.icns")
 background = defines["background"]
 window_rect = ((240, 180), (680, 440))
