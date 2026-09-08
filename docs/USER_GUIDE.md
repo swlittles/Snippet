@@ -23,7 +23,7 @@ Other controls: **Command–Return** copies and closes; **Command–1 / 2 / 3** 
 
 ## Favorites and editing
 
-Click the star on any clip or snippet to favorite it. Favorites sort first; the star beside the section tabs filters the list to favorites only. Favorite clips survive the seven-day retention window, do not count toward the 500 ordinary-clip limit, and remain favorites when copied again. Clear clipboard history keeps favorites; individual removal still deletes them. Unfavoriting makes a clip eligible for normal retention cleanup based on its capture date.
+Click the star on any clip or snippet to favorite it. Favorites sort first; the star beside the section tabs filters the list to favorites only. Favorite clips are exempt from any age or count cleanup rules you choose and remain favorites when copied again. Clear clipboard history keeps favorites; individual removal still deletes them. Unfavoriting makes a clip eligible for normal retention cleanup based on its capture date.
 
 Click a result’s pencil or press **Command–E** to edit it. Clip edits update the existing entry and preserve its source and capture date; snippet edits include title, text, tags, keyword, expansion, and favorite status. **Command–S** saves editor changes; **Escape** cancels. From the result list, **Command–S** still saves a clip as a separate snippet. Editing never changes text already pasted into another app.
 
@@ -80,7 +80,7 @@ The app’s new stacked-card logo appears in the launcher, settings, menu bar, a
 
 ## History and privacy
 
-History and expansion start disabled. Enable each from the app when wanted. History captures **plain text**, including multiline text and URLs, up to 100 KB per clip. It keeps at most 500 non-favorite clips for seven days, moves recopied text to the top, and removes expired ordinary items. Favorites are exempt from age and capacity cleanup. Images, rich text formatting, and file objects are not captured.
+History and expansion start disabled. Enable each from the app when wanted. History captures **plain text**, including multiline text and URLs, up to 100 KB per clip. It keeps clips indefinitely without a count limit by default and moves recopied text to the top. Settings → Storage offers optional age/count cleanup; applying a rule confirms any immediate deletions. Favorites are exempt from age and capacity cleanup. Images, rich text formatting, and file objects are not captured.
 
 Pause capture in Settings, remove individual clips through their context menu, or clear history with confirmation. Clearing history does not delete favorite clips or saved snippets. Clipboard data marked concealed, transient, or auto-generated is ignored, along with known password apps. These filters cannot recognize every sensitive text value copied by every app; history is local plain text, not a password vault.
 
@@ -107,3 +107,9 @@ The local app is ad-hoc signed, not notarized for distribution. **Quit Snippet b
 If Accessibility is enabled but Snippet reports otherwise, quit and reopen the app first. If access is still denied after a code change, remove its old entry from Accessibility and add the current `dist/Snippet.app` again. Ad-hoc builds have a build-specific code identity, so a checked entry can refer to an older build. This cannot be repaired by treating an OS denial as approval.
 
 If you have a persistent code-signing identity installed, set `SNIPPET_SIGNING_IDENTITY` when building to use it instead of ad-hoc signing. No certificate trust or macOS privacy permissions are changed by the build script. While open, Snippet activates and owns its keyboard shortcuts, then restores the previous app on dismissal. Global shortcut conflicts are reported, and the menu bar remains available. To launch at login, add the app in macOS Login Items.
+
+### Storage and cleanup
+
+Open Settings → Storage to choose **Forever** or an age limit, and **Unlimited** or an ordinary-clip count limit. Defaults are Forever and Unlimited, including when upgrading from earlier releases. Save cleanup rules to apply them; if existing clips would be removed, a confirmation shows the count. Favorites and snippets are excluded. Previously expired clips cannot be recovered by changing the rules.
+
+Data is stored on your Mac, not in a hosted account or iCloud. No cloud subscription or account is required. Calculator history still keeps its most recent 200 calculations; clipboard cleanup settings only apply to ordinary clips.

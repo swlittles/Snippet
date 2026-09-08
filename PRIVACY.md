@@ -12,12 +12,12 @@ Local development builds (Snippet Dev) use a separate `~/Library/Application Sup
 
 ## Retention and deletion
 
-- Ordinary clips: seven days, at most 500 entries.
+- Ordinary clips: kept indefinitely by default. Optional age and count limits can be set in Storage settings; applying a rule confirms any immediate deletions.
 - Favorite clips: no automatic expiry or capacity eviction.
 - Saved snippets: until explicitly deleted.
 - Calculations: latest 200 entries, or until you clear them.
 - Clear clipboard history preserves favorite clips and snippets. Individual clip removal can delete a favorite.
-- Turning capture off stops new collection; it does not erase existing data. Ordinary retention still applies.
+- Turning capture off stops new collection; it does not erase existing data. Any cleanup rules you choose still apply.
 
 ## Permissions
 

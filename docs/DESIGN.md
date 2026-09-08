@@ -8,7 +8,7 @@ A normal clipboard replaces its previous value. Snippet watches for new plain-te
 
 ## Keep the useful parts
 
-Ordinary clipboard history is temporary: seven days and 500 clips. A star explicitly says “keep this.” Favorites are excluded from both age and capacity cleanup, sort first, and have their own filter. Re-copying a favorite retains its ID and favorite status. Clear history preserves favorites, while an explicit individual removal can delete them. Unfavoriting returns an entry to ordinary retention based on its original or last-copy date.
+Clipboard history is unlimited by default. Users can set optional age/count cleanup rules in Storage. A star explicitly says “keep this even during cleanup.” Favorites are excluded from both age and capacity cleanup, sort first, and have their own filter. Re-copying a favorite retains its ID and favorite status. Clear history preserves favorites, while an explicit individual removal can delete them. Unfavoriting returns an entry to ordinary retention based on its original or last-copy date.
 
 ## Reuse deliberate, maintained text
 

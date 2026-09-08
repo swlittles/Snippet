@@ -275,8 +275,8 @@ struct SettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack { LogoMark(color: theme.accent).frame(width: 32, height: 32); Text(AppEnvironment.current.name + " settings").font(.title2.bold()); Spacer() }
-            Picker("Settings section", selection: $section) { Text("General").tag(0); Text("Appearance").tag(1); Text("Shortcuts").tag(2); Text("Updates").tag(3) }.pickerStyle(.segmented)
-            if section == 1 { ThemeSettingsView() } else if section == 2 { ShortcutsSettingsView() } else if section == 3 { UpdatesSettingsView(updates: app.updates) } else { general }
+            Picker("Settings section", selection: $section) { Text("General").tag(0); Text("Appearance").tag(1); Text("Shortcuts").tag(2); Text("Storage").tag(4); Text("Updates").tag(3) }.pickerStyle(.segmented).labelsHidden()
+            if section == 1 { ThemeSettingsView() } else if section == 2 { ShortcutsSettingsView() } else if section == 3 { UpdatesSettingsView(updates: app.updates) } else if section == 4 { StorageSettingsView(history: history) } else { general }
             Divider()
             HStack { Button("Open data folder") { app.dataFolder() }.pointerCursor(); Spacer(); Button("Done") { dismiss() }.keyboardShortcut(shortcuts[.closeSettings].swiftUI).pointerCursor() }
         }.padding(26).frame(width: 530).foregroundStyle(theme.text).background(theme.background).tint(theme.accent)
@@ -290,7 +290,7 @@ struct SettingsView: View {
     var general: some View {
         VStack(alignment: .leading, spacing: 16) {
             Toggle("Remember copied text", isOn: $historyEnabled).pointerCursor()
-            Text("Keep up to 500 non-favorite text clips for 7 days on this Mac. Favorites are kept indefinitely and do not count toward this limit. Pausing stops new captures. Password apps and clipboard content marked confidential are skipped.").font(.caption).foregroundStyle(theme.secondary)
+            Text("Save clipboard history on this Mac. History is unlimited by default; optional cleanup rules are in Storage. Pausing stops new captures. Password apps and clipboard content marked confidential are skipped.").font(.caption).foregroundStyle(theme.secondary)
             Button("Clear clipboard history…") { clear = true }.disabled(history.clips.isEmpty).pointerCursor()
             Divider()
             Toggle("Expand snippet keywords as I type", isOn: $expansionEnabled).pointerCursor()

@@ -22,11 +22,33 @@ struct Clip: Codable, Identifiable, Equatable {
     var title: String { String(text.split(separator: "\n", omittingEmptySubsequences: true).first.map(String.init)?.prefix(90) ?? "Text".prefix(90)) }
 }
 
+/// Zero means unlimited. Retention is a local preference, never a product quota.
+struct HistoryRetention: Equatable {
+    var days: Int = 0
+    var limit: Int = 0
+    static var current: HistoryRetention {
+        HistoryRetention(days: max(0, AppEnvironment.defaults.integer(forKey: "historyRetentionDays")),
+                         limit: max(0, AppEnvironment.defaults.integer(forKey: "historyRetentionLimit")))
+    }
+    func retaining(_ candidates: [Clip], now: Date) -> [Clip] {
+        guard days > 0 || limit > 0 else { return candidates }
+        var ordinaryCount = 0
+        return candidates.sorted { $0.date > $1.date }.filter {
+            if $0.favorite { return true }
+            if days > 0 && now.timeIntervalSince($0.date) >= Double(days) * 86400 { return false }
+            ordinaryCount += 1
+            return limit <= 0 || ordinaryCount <= limit
+        }
+    }
+}
+
 final class History: ObservableObject {
     @Published private(set) var clips: [Clip] = []
     @Published var error: String?
     let url: URL
-    init(url: URL? = nil) {
+    let retention: () -> HistoryRetention
+    init(url: URL? = nil, retention: @escaping () -> HistoryRetention = { .current }) {
+        self.retention = retention
         self.url = url ?? AppEnvironment.current.dataURL("history.json")
         guard FileManager.default.fileExists(atPath: self.url.path) else { return }
         do { clips = try JSONDecoder().decode([Clip].self, from: Data(contentsOf: self.url)) }
@@ -42,14 +64,9 @@ final class History: ObservableObject {
         }
     }
     private func retained(_ candidates: [Clip], now: Date) -> [Clip] {
-        var ordinaryCount = 0
-        return candidates.filter {
-            if $0.favorite { return true }
-            guard now.timeIntervalSince($0.date) < 7 * 86400 else { return false }
-            ordinaryCount += 1
-            return ordinaryCount <= 500
-        }
+        retention().retaining(candidates, now: now)
     }
+
     func record(_ text: String, source: String, now: Date = Date()) {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, text.utf8.count <= 100_000 else { return }
         // Re-copying keeps the favorite's identity and protection, including edited duplicates.

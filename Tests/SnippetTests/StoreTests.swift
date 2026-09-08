@@ -19,6 +19,7 @@ final class StoreTests {
         try tests.testLegacyMigration()
         tests.testEnvironments()
         tests.testHistory()
+        try tests.testUnlimitedAndCustomRetention()
         try tests.testFavoriteRetentionAndEditing()
         tests.testExpansion()
         tests.testClipboardCapture()
@@ -27,7 +28,7 @@ final class StoreTests {
         tests.testThemesAndNavigation()
         tests.testShortcuts()
         tests.testResultNavigation()
-        print("Passed 14 test groups: persistence, search, corruption, migration, history, expansion, capture, calculator, calculation history, themes/navigation, configurable shortcuts, result cycling")
+        print("Passed 15 test groups: persistence, search, corruption, migration, history, expansion, capture, calculator, calculation history, themes/navigation, configurable shortcuts, result cycling")
     }
     var directory: URL!
     func setUpWithError() throws {
@@ -94,9 +95,33 @@ final class StoreTests {
             XCTAssertEqual(development.dataURL(filename, root: directory), directory.appendingPathComponent("Snippet Dev/" + filename))
         }
     }
+    func testUnlimitedAndCustomRetention() throws {
+        let now = Date()
+        let clips = (0..<1200).map { Clip(text: "item \($0)", source: "Test", date: now.addingTimeInterval(-Double($0) * 86400)) }
+        let url = directory.appendingPathComponent("unlimited.json")
+        try JSONEncoder().encode(clips).write(to: url)
+        var policy = HistoryRetention()
+        let history = History(url: url, retention: { policy })
+        history.prune(now: now)
+        XCTAssertEqual(history.clips.count, 1200)
+        history.record("new item", source: "Test", now: now)
+        XCTAssertEqual(history.clips.count, 1201)
+        XCTAssertEqual(History(url: url, retention: { HistoryRetention() }).clips.count, 1201)
+        let oldest = clips.last!
+        history.toggleFavorite(oldest.id)
+        policy = HistoryRetention(days: 30, limit: 10)
+        history.prune(now: now)
+        XCTAssertEqual(history.clips.count, 11)
+        XCTAssertTrue(history.clips.contains { $0.id == oldest.id && $0.favorite })
+        XCTAssertTrue(history.clips.contains { $0.text == "new item" })
+        XCTAssertEqual(HistoryRetention(days: 7).retaining(clips, now: now).count, 7)
+        XCTAssertEqual(HistoryRetention(limit: 1000).retaining(clips.reversed(), now: now).first?.id, clips.first?.id)
+        XCTAssertEqual(HistoryRetention(limit: 1000).retaining(clips, now: now).count, 1000)
+        XCTAssertEqual(HistoryRetention().retaining(clips, now: now.addingTimeInterval(4000 * 86400)), clips)
+    }
     func testHistory() {
         let url = directory.appendingPathComponent("history.json")
-        let history = History(url: url)
+        let history = History(url: url, retention: { HistoryRetention(days: 7, limit: 500) })
         let now = Date()
         history.record("older", source: "Test", now: now.addingTimeInterval(-8 * 86400))
         history.record("Hello 世界", source: "Editor", now: now)
@@ -107,7 +132,7 @@ final class StoreTests {
         XCTAssertEqual(history.search("hello editor").count, 1)
         history.record(String(repeating: "x", count: 100001), source: "Test")
         XCTAssertEqual(history.clips.count, 2)
-        XCTAssertEqual(History(url: url).clips.count, 2)
+        XCTAssertEqual(History(url: url, retention: { HistoryRetention(days: 7, limit: 500) }).clips.count, 2)
         history.prune(now: now.addingTimeInterval(8 * 86400))
         XCTAssertTrue(history.clips.isEmpty)
     }
@@ -119,7 +144,7 @@ final class StoreTests {
         var json = try JSONSerialization.jsonObject(with: JSONEncoder().encode([legacy])) as! [[String: Any]]
         json[0].removeValue(forKey: "favorite")
         try JSONSerialization.data(withJSONObject: json).write(to: url)
-        let history = History(url: url)
+        let history = History(url: url, retention: { HistoryRetention(days: 7, limit: 500) })
         XCTAssertEqual(history.clips.first?.favorite, false)
         history.toggleFavorite(legacy.id)
         history.prune(now: now)
@@ -133,7 +158,7 @@ final class StoreTests {
         var edited = history.clips.first!
         edited.text = "Updated 世界\nSecond line"
         XCTAssertTrue(history.update(edited))
-        let reloaded = History(url: url)
+        let reloaded = History(url: url, retention: { HistoryRetention(days: 7, limit: 500) })
         XCTAssertEqual(reloaded.clips.first?.text, edited.text)
         XCTAssertEqual(reloaded.clips.first?.id, legacy.id)
         XCTAssertEqual(reloaded.clips.first?.source, "Recopied")

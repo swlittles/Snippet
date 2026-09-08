@@ -23,7 +23,7 @@ Snippet is a Swift Package executable targeting macOS 13+. AppKit owns app lifec
 1. ClipboardService polls the pasteboard change count every 0.4 seconds.
 2. When enabled, it rejects marked concealed/transient/generated content and known password apps, then reads plain text.
 3. History records non-empty text up to 100,000 UTF-8 bytes. Re-copies retain the chosen entry's ID and favorite status.
-4. Retention keeps all favorites plus at most 500 recent ordinary entries. Pruning occurs at startup, when opening the launcher, and periodically.
+4. Retention is unlimited by default. User-selected age/count rules apply to ordinary clips; favorites are always kept. Pruning occurs at startup, when opening the launcher, and periodically.
 5. Search filters results by query words and the optional favorites-only mode. Favorites sort first.
 6. Paste writes the selected text to the system clipboard with an auto-generated marker. The app checks Accessibility trust, activates the saved destination, and posts Command–V after it becomes frontmost.
 

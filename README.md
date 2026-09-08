@@ -63,7 +63,7 @@ Read the [full user guide](docs/USER_GUIDE.md) for keyword expansion, calculator
 ## Your data
 
 - Capture and keyword expansion start **off**.
-- Ordinary clips expire after seven days, with a maximum of 500. **Favorite clips are exempt from both limits.**
+- Clipboard history has no age or count limit by default. Optional cleanup rules are in Settings → Storage. **Favorite clips are exempt from both limits.**
 - Clearing clipboard history keeps favorites and snippets. Individual removal deletes the selected clip.
 - Snippets remain until you delete them; the calculator remembers its latest 200 entries.
 - Data is stored as local JSON with owner-only file permissions. It is not encrypted by Snippet.

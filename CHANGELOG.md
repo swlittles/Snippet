@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.3.1
+
+- Removed the redundant Settings section label above the tabs.
+- Keep clipboard history indefinitely by default, without a count limit.
+- Added Storage settings for optional age/count cleanup, with confirmation before removing existing clips.
+- Keep favorites exempt from all cleanup rules.
+
 ## 3.3.0
 
 - Added Sparkle updates: Check for Updates in the menu bar and Settings, optional daily checks, and download/install/relaunch.
