@@ -67,6 +67,10 @@ final class StoreTests {
         let link = Quicklink(title: "Search", destination: "https://example.com/?q={query}")
         XCTAssertEqual(try link.url(query: "a&b #c").absoluteString, "https://example.com/?q=a%26b%20%23c")
         do { _ = try Quicklink(title: "Bad", destination: "javascript:alert(1)").url(query: ""); preconditionFailure("Accepted executable scheme") } catch {}
+        let script = directory.appendingPathComponent("unsafe.command")
+        try Data("echo example".utf8).write(to: script)
+        do { _ = try Quicklink(title: "Not a folder", destination: script.path).destinationURL(query: ""); preconditionFailure("Accepted a script as a folder") } catch {}
+        XCTAssertEqual(try Quicklink(title: "Folder", destination: directory.path).destinationURL(query: "").path, directory.path)
         let pack = SnippetPack(snippets: [.init(title: "Markdown", text: "# Hi", tags: "", collection: "Work", format: "markdown")], collections: ["Work"], quicklinks: [link])
         let packURL = directory.appendingPathComponent("pack.json"); try WorkspaceStore.write(pack, to: packURL)
         let loaded = try SnippetPack.read(packURL)

@@ -138,7 +138,7 @@ struct WorkspaceView: View {
                 ForEach(workspace.data.links.filter { linkQuery.isEmpty || $0.title.localizedStandardContains(linkQuery) || $0.destination.contains("{query}") }) { link in
                     HStack {
                         Button(link.title) {
-                            do { let url = try link.url(query: linkQuery); dismiss(); model.app.hide(); NSWorkspace.shared.open(url) }
+                            do { let url = try link.destinationURL(query: linkQuery); dismiss(); model.app.hide(); NSWorkspace.shared.open(url) }
                             catch { notice = error.localizedDescription }
                         }.buttonStyle(WorkspaceButtonStyle())
                         Spacer()

@@ -7,6 +7,14 @@ struct Quicklink: Codable, Identifiable, Equatable {
     var title: String
     var destination: String
     var updatedAt = Date()
+    func destinationURL(query: String) throws -> URL {
+        let destination = try url(query: query)
+        if destination.isFileURL {
+            let values = try destination.resourceValues(forKeys: [.isDirectoryKey, .isPackageKey])
+            guard values.isDirectory == true, values.isPackage != true else { throw MathError.invalid("Folder quicklinks must point to an ordinary folder, not an app, script or document.") }
+        }
+        return destination
+    }
     func url(query: String) throws -> URL {
         if destination.hasPrefix("/") || destination.hasPrefix("~/") {
             return URL(fileURLWithPath: (destination as NSString).expandingTildeInPath)
