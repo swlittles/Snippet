@@ -10,5 +10,10 @@ struct AppEnvironment: Equatable {
         root.appendingPathComponent(name, isDirectory: true).appendingPathComponent(filename)
     }
     static let current = AppEnvironment(bundleIdentifier: Bundle.main.bundleIdentifier)
-    static let defaults = UserDefaults(suiteName: current.bundleIdentifier)!
+    static let defaults: UserDefaults = {
+        // The app's own bundle domain belongs to .standard. Opening that domain
+        // as a suite can return nil on macOS; suites are only needed unbundled.
+        if Bundle.main.bundleIdentifier == current.bundleIdentifier { return .standard }
+        return UserDefaults(suiteName: current.bundleIdentifier)!
+    }()
 }

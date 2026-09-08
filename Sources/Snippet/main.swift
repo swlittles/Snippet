@@ -219,6 +219,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 }
 
+// Exercise bundled preferences initialization in CI without opening a window.
+if CommandLine.arguments.contains("--verify-environment") {
+    _ = AppEnvironment.defaults.bool(forKey: "historyEnabled")
+    print("Verified environment: " + AppEnvironment.current.bundleIdentifier)
+    exit(0)
+}
+
 let app = NSApplication.shared
 let delegate = AppDelegate()
 app.delegate = delegate
