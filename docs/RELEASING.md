@@ -73,3 +73,17 @@ The default signed mode requires credentials before building. Output goes to `re
 ## Current limitations
 
 There is no automatic updater, App Store distribution, or Intel/macOS 13 runtime test farm. CI cross-compiles both architectures and runs the logic suite on its macOS runner. A build passing CI is not proof of Accessibility/paste behavior in every third-party app.
+
+## Installer design
+
+`scripts/package-dmg.sh` uses [dmgbuild](https://dmgbuild.readthedocs.io/en/latest/settings.html) to write Finder metadata without UI automation. Python 3.10+ is required; exact packaging dependencies are installed into `.build/dmg-tools` from `scripts/dmg-requirements.txt`. AppKit generates the 1x/2x background, combined into a Retina TIFF. Edit `scripts/make-dmg-background.swift` and `scripts/dmg-settings.py` together when changing dimensions or icon positions.
+
+The disk opens at 680 × 440 points with Snippet on the left and an Applications symlink on the right. Only these two items are visible; installation documentation stays on GitHub. Preview builds show a notice in the artwork. Signing and notarization still happen after packaging.
+
+To preview layout independently of rebuilding the app:
+
+```sh
+bash scripts/package-dmg.sh "$PWD/release-build/Snippet.app" "$PWD/release-build/Installer-preview.dmg" preview
+```
+
+Open the resulting DMG in Finder and check typography, icon alignment, and the Applications destination before tagging a release.

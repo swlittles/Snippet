@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## 3.2.1
+
+- Redesigned the DMG with a compact branded Retina background, drag-to-Applications layout, and no loose documentation files.
+- Fixed bundled preferences initialization at startup.
 
 - Separate local Snippet Dev builds from production: bundle identity, data, settings, Accessibility permission, default hotkey, and DEV icon/menu label.
 - Default local builds to development; release scripts explicitly select production.

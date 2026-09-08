@@ -35,3 +35,8 @@ jobs:
           lipo "$app/Contents/MacOS/$executable" -verify_arch arm64 x86_64
           "$app/Contents/MacOS/$executable" --verify-environment
           test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$app/Contents/Info.plist")" = "$bundle"
+      - name: Verify installer packaging
+        if: matrix.variant == 'production'
+        run: |
+          bash scripts/package-dmg.sh "$PWD/dist/Snippet.app" "$PWD/.build/Installer-preview.dmg" preview
+          hdiutil verify .build/Installer-preview.dmg

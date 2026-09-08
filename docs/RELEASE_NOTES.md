@@ -1,12 +1,10 @@
 A native macOS clipboard, snippet, and calculator launcher. Requires macOS 13 or newer; one universal app supports Apple Silicon and Intel.
 
-### Highlights
+### What’s new in 3.2.1
 
-- Search clipboard history and paste back into your previous app.
-- Favorite clips and snippets. Favorite clips survive retention limits and clearing history.
-- Edit clips or snippets directly with Cmd–E.
-- Save reusable snippets with optional keyword expansion.
-- Calculator with persistent history, themes, and configurable shortcuts.
+- A polished, compact installer with Retina artwork and a clear drag-to-Applications layout. No loose Markdown files.
+- Local source builds now run as Snippet Dev, with separate data, settings, permissions, and a distinct icon.
+- Fixed preferences initialization at startup and added startup verification for both build variants.
 
 ### Install
 

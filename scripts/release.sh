@@ -35,14 +35,7 @@ if [ "$MODE" = signed ]; then
     xcrun stapler validate "$APP"
     spctl --assess --type execute --verbose=2 "$APP"
 fi
-mkdir -p "$WORK/disk"
-ditto "$APP" "$WORK/disk/Snippet.app"
-ln -s /Applications "$WORK/disk/Applications"
-cp docs/INSTALL.md "$WORK/disk/Installation.md"
-if [ "$MODE" = preview ]; then
-    printf '%s\n' 'DEVELOPER PREVIEW — NOT NOTARIZED' 'This build is ad-hoc signed and is not a normal Gatekeeper-approved installation.' 'For routine use, wait for a signed stable release. See Installation.md.' > "$WORK/disk/PREVIEW.txt"
-fi
-hdiutil create -volname Snippet -srcfolder "$WORK/disk" -ov -format UDZO "$WORK/$NAME.dmg"
+bash scripts/package-dmg.sh "$APP" "$WORK/$NAME.dmg" "$MODE"
 if [ "$MODE" = signed ]; then
     codesign --timestamp --sign "$SNIPPET_SIGNING_IDENTITY" "$WORK/$NAME.dmg"
     xcrun notarytool submit "$WORK/$NAME.dmg" --keychain-profile "$NOTARY_PROFILE" --wait --output-format json > "$WORK/dmg-notary.json"
