@@ -26,7 +26,7 @@ Inspired by Alfred’s keyboard-first workflow; an independent project, not affi
 
 Visit **[GitHub Releases](https://github.com/swlittles/Snippet/releases)** for release status and downloads. Stable releases are built for **Apple Silicon and Intel** in a single universal app, signed with Developer ID, and notarized by Apple.
 
-**Initial distribution status:** signing setup is in progress. Do not treat a source archive or a build labelled “developer preview” as a notarized stable release. The stable release pipeline refuses to publish without successful signing and notarization.
+The stable release pipeline refuses to publish without successful signing and notarization. Use the DMG or ZIP attached to a stable release; source archives and builds labelled “developer preview” are not notarized app downloads.
 
 For a stable release:
 

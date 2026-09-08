@@ -6,7 +6,7 @@ Use the DMG or ZIP attached to a [GitHub Release](https://github.com/swlittles/S
 
 Open the DMG, drag Snippet to Applications, eject the disk image, and launch the copy in Applications. With the ZIP, unzip it and move Snippet.app to Applications. No administrator-level installer or background service is installed.
 
-The project is initially setting up Developer ID signing. Only releases explicitly described as signed and notarized are intended for normal installation. Developer previews are ad-hoc signed, not notarized, and may be blocked by Gatekeeper. Do not disable Gatekeeper or strip quarantine as an installation step; wait for a signed release or build from reviewed source for development.
+Stable release assets are signed and notarized before publication. Only releases explicitly described as signed and notarized are intended for normal installation. Developer previews are ad-hoc signed, not notarized, and may be blocked by Gatekeeper. Do not disable Gatekeeper or strip quarantine as an installation step; wait for a signed release or build from reviewed source for development.
 
 ## Permissions and first launch
 

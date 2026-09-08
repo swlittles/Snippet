@@ -1,6 +1,6 @@
 # Changelog
 
-## 3.2.0 — initial public source release
+## 3.2.0 — initial public release
 
 - Added favorites for clips and snippets, favorite-first sorting, and a favorites-only filter.
 - Exempted favorite clips from age/capacity cleanup and Clear History; re-copying preserves favorites.
