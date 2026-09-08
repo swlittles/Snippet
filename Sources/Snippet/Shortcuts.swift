@@ -143,6 +143,7 @@ final class ShortcutStore: ObservableObject {
     @Published private(set) var bindings: [String: KeyBinding]
     @Published var recording: ShortcutAction?
     @Published var error: String?
+    private var toggleIsDown = false
     var registerGlobal: ((KeyBinding) -> String?)?
     var didChange: (() -> Void)?
     let defaults: UserDefaults
@@ -170,6 +171,7 @@ final class ShortcutStore: ObservableObject {
     @discardableResult func set(_ binding: KeyBinding, for action: ShortcutAction) -> Bool {
         if let message = validation(binding, for: action) { error = message; return false }
         if action == .toggle, let message = registerGlobal?(binding) { error = message; return false }
+        if action == .toggle { releaseToggle() }
         bindings[action.rawValue] = binding
         persist(); error = nil; recording = nil; didChange?(); return true
     }
@@ -179,8 +181,29 @@ final class ShortcutStore: ObservableObject {
         _ = set(KeyBinding(event: event), for: recording)
         return true
     }
+    /// Match physical keys, including Option combinations that produce text.
+    /// Consume repeats too, so holding the shortcut cannot type or reopen it.
+    func consumeLauncherToggle(_ event: NSEvent, launcherVisible: Bool, toggle: () -> Void) -> Bool {
+        guard event.type == .keyDown, (launcherVisible || toggleIsDown), recording == nil, self[.toggle].matches(event) else { return false }
+        if !event.isARepeat { performTogglePress(toggle) }
+        return true
+    }
+    // Carbon and AppKit can both deliver the same physical press. Handle it once
+    // and wait for key-up, rather than using a timing debounce that drops taps.
+    func performTogglePress(_ toggle: () -> Void) {
+        guard !toggleIsDown else { return }
+        toggleIsDown = true
+        toggle()
+    }
+    func releaseToggle() { toggleIsDown = false }
+    func consumeToggleRelease(_ event: NSEvent) -> Bool {
+        guard event.type == .keyUp, event.keyCode == self[.toggle].code, toggleIsDown else { return false }
+        releaseToggle()
+        return true
+    }
     func resetAll() {
         if let message = registerGlobal?(ShortcutAction.toggle.standard) { error = message; return }
+        releaseToggle()
         bindings = Dictionary(uniqueKeysWithValues: ShortcutAction.allCases.map { ($0.rawValue, $0.standard) })
         recording = nil; error = nil; persist(); didChange?()
     }

@@ -1,13 +1,11 @@
 A native macOS clipboard, snippet, and calculator launcher. Requires macOS 13 or newer; one universal app supports Apple Silicon and Intel.
 
-### What’s new in 3.3.1
+### What’s new in 3.3.2
 
-- Cleaner Settings tabs without the redundant section label.
-- Clipboard history is now kept indefinitely by default, with no item-count limit.
-- New Storage settings let you choose optional age and count limits. Existing clips are removed only after confirmation; favorites are always protected.
-- Your library remains on your Mac. iCloud sync is not currently implemented.
+- The configured launcher hotkey takes priority over text input, so the same shortcut opens and closes Snippet with search focused.
+- Cleaner Storage settings without the redundant favorites/limits note.
 
-From 3.3.0, choose **Check for Updates…** to install this release. Versions 3.2.x require one manual upgrade to gain the updater.
+From 3.3.0 or later, choose **Check for Updates…** to install this release. Versions 3.2.x require one manual upgrade to gain the updater.
 
 ### Install
 

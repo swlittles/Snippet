@@ -41,7 +41,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         panel = LauncherPanel(contentRect: NSRect(x: 0, y: 0, width: 680, height: 456), styleMask: [.borderless], backing: .buffered, defer: false)
         panel.delegate = self
         panel.becomesKeyOnlyIfNeeded = false
-        panel.keyHandler = { [weak self] event in self?.model.handle(event) ?? false }
+        panel.keyHandler = { [weak self] event in self?.handleKeyEvent(event) ?? false }
         panel.hasShadow = true
         panel.isOpaque = false
         panel.backgroundColor = .clear
@@ -65,15 +65,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             status.length = NSStatusItem.variableLength
             status.button?.title = " Dev"
         }
-        var type = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
-        InstallEventHandler(GetApplicationEventTarget(), { _, _, context in
+        var types = [EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed)),
+                     EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyReleased))]
+        InstallEventHandler(GetEventDispatcherTarget(), { _, event, context in
             guard let context else { return OSStatus(eventNotHandledErr) }
             let app = Unmanaged<AppDelegate>.fromOpaque(context).takeUnretainedValue()
+            if let event, GetEventKind(event) == UInt32(kEventHotKeyReleased) {
+                app.shortcuts.releaseToggle()
+                return noErr
+            }
             if let recording = app.shortcuts.recording {
                 _ = app.shortcuts.set(app.shortcuts[.toggle], for: recording)
-            } else { app.toggle() }
+            } else { app.shortcuts.performTogglePress { app.toggle() } }
             return noErr
-        }, 1, &type, Unmanaged.passUnretained(self).toOpaque(), &eventHandler)
+        }, types.count, &types, Unmanaged.passUnretained(self).toOpaque(), &eventHandler)
         shortcuts.registerGlobal = { [weak self] binding in self?.registerGlobal(binding) }
         shortcuts.didChange = { [weak self] in self?.configureMenus() }
         if let error = registerGlobal(shortcuts[.toggle]) { hotkeyMessage = error; shortcuts.error = error }
@@ -84,13 +89,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         updates.availabilityChanged = { [weak self] in self?.configureMenus() }
         updates.start()
         configureMenus()
-        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self else { return event }
-            if self.shortcuts.capture(event) { return nil }
-            guard self.panel.isKeyWindow || self.panel.attachedSheet?.isKeyWindow == true else { return event }
-            return self.model.handle(event) ? nil : event
+        NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp]) { [weak self] event in
+            self?.handleKeyEvent(event) == true ? nil : event
         }
         show()
+    }
+    func handleKeyEvent(_ event: NSEvent) -> Bool {
+        if shortcuts.consumeToggleRelease(event) { return true }
+        guard event.type == .keyDown else { return false }
+        if shortcuts.capture(event) { return true }
+        // A field editor or sheet can own keyboard focus. Visibility, not the
+        // panel's key-window flag, determines whether the toggle should close it.
+        if shortcuts.consumeLauncherToggle(event, launcherVisible: panel?.isVisible == true, toggle: { self.toggle() }) { return true }
+        guard panel?.isKeyWindow == true || panel?.attachedSheet?.isKeyWindow == true else { return false }
+        return model.handle(event)
     }
     @objc func performCommand(_ sender: NSMenuItem) {
         guard let name = sender.representedObject as? String, let action = ShortcutAction(rawValue: name), shortcuts.recording == nil else { return }
@@ -103,7 +115,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             hotkey = nil; activeGlobal = nil; hotkeyMessage = ""; return nil
         }
         var replacement: EventHotKeyRef?
-        let status = RegisterEventHotKey(UInt32(binding.code), binding.carbonModifiers, EventHotKeyID(signature: 0x534E4950, id: 1), GetApplicationEventTarget(), 0, &replacement)
+        let status = RegisterEventHotKey(UInt32(binding.code), binding.carbonModifiers, EventHotKeyID(signature: 0x534E4950, id: 1), GetEventDispatcherTarget(), 0, &replacement)
         guard status == noErr else { return "\(binding.label) is unavailable or used by another app. Your previous shortcut was kept." }
         if let hotkey { UnregisterEventHotKey(hotkey) }
         hotkey = replacement; activeGlobal = binding; hotkeyMessage = ""; return nil

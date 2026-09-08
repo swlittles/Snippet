@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.3.2
+
+- Handle the launcher toggle before native text input, including when a field editor owns focus.
+- Route the registered global shortcut through the Carbon event dispatcher.
+- Remove the redundant favorites/limits note from Storage settings.
+
 ## 3.3.1
 
 - Removed the redundant Settings section label above the tabs.

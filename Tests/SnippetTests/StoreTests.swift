@@ -27,8 +27,9 @@ final class StoreTests {
         try tests.testCalculationHistory()
         tests.testThemesAndNavigation()
         tests.testShortcuts()
+        tests.testFocusedLauncherToggle()
         tests.testResultNavigation()
-        print("Passed 15 test groups: persistence, search, corruption, migration, history, expansion, capture, calculator, calculation history, themes/navigation, configurable shortcuts, result cycling")
+        print("Passed 16 test groups: persistence, search, corruption, migration, history, expansion, capture, calculator, calculation history, themes/navigation, configurable shortcuts, result cycling")
     }
     var directory: URL!
     func setUpWithError() throws {
@@ -305,6 +306,43 @@ final class StoreTests {
         shortcuts.recording = .snippets
         XCTAssertTrue(shortcuts.capture(event(53)))
         XCTAssertEqual(shortcuts.recording, nil)
+    }
+    func testFocusedLauncherToggle() {
+        let name = "SnippetToggleTest-" + UUID().uuidString
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        let shortcuts = ShortcutStore(defaults: defaults)
+        func event(_ code: UInt16, _ flags: NSEvent.ModifierFlags, text: String = " ", repeated: Bool = false, type: NSEvent.EventType = .keyDown) -> NSEvent {
+            NSEvent.keyEvent(with: type, location: .zero, modifierFlags: flags, timestamp: 0, windowNumber: 0, context: nil, characters: text, charactersIgnoringModifiers: text, isARepeat: repeated, keyCode: code)!
+        }
+        var toggles = 0
+        func consume(_ event: NSEvent, visible: Bool = true) -> Bool {
+            shortcuts.consumeLauncherToggle(event, launcherVisible: visible) { toggles += 1 }
+        }
+        XCTAssertTrue(shortcuts.set(KeyBinding(49, .option), for: .toggle))
+        // Option-Space can arrive as a non-breaking space from the field editor.
+        XCTAssertTrue(consume(event(49, .option, text: "\u{00a0}")))
+        XCTAssertEqual(toggles, 1)
+        XCTAssertTrue(consume(event(49, .option, repeated: true)))
+        XCTAssertEqual(toggles, 1)
+        XCTAssertFalse(consume(event(49, [])))
+        // A second delivery (Carbon or AppKit) must not reopen the launcher.
+        shortcuts.performTogglePress { toggles += 1 }
+        XCTAssertTrue(consume(event(49, .option), visible: false))
+        XCTAssertEqual(toggles, 1)
+        XCTAssertTrue(shortcuts.consumeToggleRelease(event(49, [], type: .keyUp)))
+        XCTAssertFalse(shortcuts.consumeToggleRelease(event(49, [], type: .keyUp)))
+        XCTAssertFalse(consume(event(49, .option), visible: false))
+        XCTAssertTrue(shortcuts.set(KeyBinding(40, [.control, .option]), for: .toggle))
+        XCTAssertFalse(consume(event(49, .option)))
+        XCTAssertTrue(consume(event(40, [.control, .option], text: "˚")))
+        XCTAssertEqual(toggles, 2)
+        shortcuts.releaseToggle()
+        shortcuts.recording = .toggle
+        XCTAssertFalse(consume(event(40, [.control, .option])))
+        shortcuts.recording = nil
+        XCTAssertTrue(shortcuts.set(.disabled, for: .toggle))
+        XCTAssertFalse(consume(event(40, [.control, .option])))
     }
     func testResultNavigation() {
         XCTAssertEqual(ResultNavigation.index(current: 0, count: 3, backward: false, wraps: true), 1)
