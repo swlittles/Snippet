@@ -33,7 +33,8 @@ final class StoreTests {
         try tests.testWorkspaceAndPacks()
         try tests.testLibrarySync()
         try tests.testImagePersistence()
-        print("Passed 20 test groups: persistence, search, corruption, migration, history, expansion, capture, calculator, calculation history, themes/navigation, configurable shortcuts, result cycling")
+        tests.testMenuTrackingSessions()
+        print("Passed 21 test groups: persistence, search, corruption, migration, history, expansion, capture, calculator, calculation history, themes/navigation, configurable shortcuts, result cycling")
     }
     func testPowerTools() throws {
         XCTAssertEqual(SnippetTemplate.fields("Hi {{name}} {{date}} {{name}} {{project}} {{date:MMMM}} {{cursor}}"), ["name", "project"])
@@ -132,6 +133,21 @@ final class StoreTests {
         XCTAssertTrue(history.clips.first(where: { $0.id == captured.id })?.text.contains("Snippet OCR 42") == true)
         history.remove(captured.id)
         XCTAssertFalse(FileManager.default.fileExists(atPath: history.imageURL(captured)!.path))
+    }
+    func testMenuTrackingSessions() {
+        var session = MenuTrackingSession()
+        let first = session.begin(at: 10)
+        XCTAssertFalse(session.acceptsOutsideClick(generation: first, timestamp: 10))
+        XCTAssertTrue(session.acceptsOutsideClick(generation: first, timestamp: 11))
+        session.end()
+        XCTAssertFalse(session.acceptsOutsideClick(generation: first, timestamp: 12))
+        let second = session.begin(at: 20)
+        // Both a queued old callback and an old event delivered to a new callback
+        // must be ignored after clicking away and reopening the same NSMenu.
+        XCTAssertFalse(session.acceptsOutsideClick(generation: first, timestamp: 21))
+        XCTAssertFalse(session.acceptsOutsideClick(generation: second, timestamp: 19))
+        XCTAssertFalse(session.acceptsOutsideClick(generation: second, timestamp: 20))
+        XCTAssertTrue(session.acceptsOutsideClick(generation: second, timestamp: 21))
     }
     var directory: URL!
     func setUpWithError() throws {

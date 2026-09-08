@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Make the menu-bar icon toggle its menu on mouse-down without reopening on mouse-up.
+- Ignore stale outside-click callbacks when reopening the menu and activate before menu tracking begins.
+
 ## 3.4.0
 
 - Add Workspace with local text/developer tools, quicklinks, collections and import/export.

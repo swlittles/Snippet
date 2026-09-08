@@ -32,6 +32,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     var previousApp: NSRunningApplication?
     var model: LauncherModel!
     var hotkeyMessage = ""
+    private var statusMenu: NSMenu?
+    private var menuSession = MenuTrackingSession()
     private var trackingStatusMenu: NSMenu?
     private var menuOutsideClickMonitor: Any?
 
@@ -162,27 +164,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         let folder = NSMenuItem(title: "Show Data Folder", action: #selector(dataFolder), keyEquivalent: ""); folder.target = self; menu.addItem(folder)
         menu.addItem(.separator()); menu.addItem(menuItem(.quit, selector: #selector(quit)))
         menu.delegate = self
-        self.status.menu = menu
+        statusMenu = menu
+        // Own the click action: mouse-down opens the menu; its native tracking
+        // consumes the next outside/icon click without a mouse-up reopening it.
+        status.menu = nil
+        status.button?.target = self
+        status.button?.action = #selector(toggleStatusMenu)
+        status.button?.sendAction(on: [.leftMouseDown, .rightMouseDown])
+    }
+    @objc func toggleStatusMenu() {
+        if let menu = trackingStatusMenu { menu.cancelTracking(); return }
+        guard let menu = statusMenu, let button = status.button else { return }
+        if !panel.isVisible, let front = NSWorkspace.shared.frontmostApplication,
+           front.processIdentifier != ProcessInfo.processInfo.processIdentifier { previousApp = front }
+        // Activate before entering AppKit's tracking loop, never from menuWillOpen.
+        NSApp.activate(ignoringOtherApps: true)
+        button.highlight(true)
+        defer { button.highlight(false) }
+        menu.popUp(positioning: nil, at: NSPoint(x: button.bounds.minX, y: button.bounds.maxY), in: button)
     }
     func menuWillOpen(_ menu: NSMenu) {
-        guard menu === status.menu else { return }
+        guard menu === statusMenu else { return }
         trackingStatusMenu = menu
-        // An accessory app may still be inactive when its status item is clicked.
-        // Give the native menu focus and explicitly cancel when a click goes to another app.
-        NSApp.activate(ignoringOtherApps: true)
+        let generation = menuSession.begin(at: ProcessInfo.processInfo.systemUptime)
         if let monitor = menuOutsideClickMonitor { NSEvent.removeMonitor(monitor) }
-        menuOutsideClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak menu] _ in
-            menu?.cancelTracking()
+        menuOutsideClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self, weak menu] event in
+            guard let self, let menu, menu === self.trackingStatusMenu,
+                  self.menuSession.acceptsOutsideClick(generation: generation, timestamp: event.timestamp) else { return }
+            menu.cancelTracking()
         }
     }
     func menuDidClose(_ menu: NSMenu) {
         guard menu === trackingStatusMenu else { return }
+        menuSession.end()
         trackingStatusMenu = nil
         if let monitor = menuOutsideClickMonitor { NSEvent.removeMonitor(monitor) }
         menuOutsideClickMonitor = nil
         shortcuts.releaseToggle()
     }
-    func applicationDidResignActive(_ notification: Notification) { trackingStatusMenu?.cancelTracking() }
     func toggle() { trackingStatusMenu?.cancelTracking(); if panel.isVisible { hide() } else { show() } }
     @objc func show() {
         if !panel.isVisible {
