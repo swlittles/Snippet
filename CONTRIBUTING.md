@@ -14,6 +14,8 @@ bash scripts/build.sh
 
 Quit Snippet before rebuilding its installed bundle. Use `SNIPPET_OUTPUT_DIR="$PWD/release-build"` to package separately without replacing the running local app. Build artifacts and signing credentials must remain untracked.
 
+See [development versus production](docs/DEVELOPMENT.md) for build variants and data isolation.
+
 ## Before a pull request
 
 - Run the tests and a release build.

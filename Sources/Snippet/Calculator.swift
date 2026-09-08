@@ -16,7 +16,7 @@ final class CalculatorStore: ObservableObject {
     let url: URL
     var answer: Double { entries.first?.result ?? 0 }
     init(url: URL? = nil) {
-        self.url = url ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Snippet/calculations.json")
+        self.url = url ?? AppEnvironment.current.dataURL("calculations.json")
         guard FileManager.default.fileExists(atPath: self.url.path) else { return }
         do { entries = try JSONDecoder().decode([Calculation].self, from: Data(contentsOf: self.url)) }
         catch { self.error = "Couldn’t read calculation history. The original file was preserved." }

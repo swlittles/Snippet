@@ -6,6 +6,7 @@ Snippet is a Swift Package executable targeting macOS 13+. AppKit owns app lifec
 
 | File | Responsibility |
 | --- | --- |
+| `AppEnvironment.swift` | Runtime build identity, data paths, and preferences domain |
 | `main.swift` | AppDelegate, NSPanel, menu bar, global Carbon hotkey, menu commands, previous-app activation and paste |
 | `LauncherView.swift` | Search/selection state, results, favorite and edit actions, clip/snippet editors, general settings |
 | `Store.swift` | Snippet model, search, atomic persistence |
@@ -46,7 +47,7 @@ When enabled and trusted, a CGEvent tap feeds a short-lived ASCII keyword buffer
 
 `VERSION` and `BUILD_NUMBER` drive bundle metadata. `scripts/build.sh` builds a native or universal app, stages replacement, and refuses to overwrite a running bundle. `scripts/release.sh` signs with hardened runtime and a secure timestamp, notarizes and staples the app, packages a DMG/ZIP, notarizes and staples the DMG, then writes checksums. The signed release path checks team identity and refuses to continue after notarization failure.
 
-The existing bundle ID `local.snippet.app` is retained to preserve preferences and avoid an unnecessary identity migration. The Apple Team ID is independently verified during signing.
+Production retains `local.snippet.app` to preserve preferences and avoid an unnecessary identity migration. Local packaging defaults to `local.snippet.dev` / Snippet Dev; unbundled `swift run` also uses development storage and preferences. All stores and settings use `AppEnvironment` to select their domain. The Apple Team ID is independently verified during signing.
 
 ## Verification
 

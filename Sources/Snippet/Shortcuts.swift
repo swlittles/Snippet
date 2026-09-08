@@ -69,7 +69,7 @@ enum ShortcutAction: String, CaseIterable, Identifiable, Codable {
     var standard: KeyBinding {
         let cmd = NSEvent.ModifierFlags.command, shift = NSEvent.ModifierFlags.shift
         switch self {
-        case .toggle: return .init(49, .option)
+        case .toggle: return .init(49, AppEnvironment.current.isDevelopment ? [.control, .option] : .option)
         case .clipboard: return .init(18, cmd)
         case .snippets: return .init(19, cmd)
         case .calculator: return .init(20, cmd)
@@ -146,7 +146,7 @@ final class ShortcutStore: ObservableObject {
     var registerGlobal: ((KeyBinding) -> String?)?
     var didChange: (() -> Void)?
     let defaults: UserDefaults
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = AppEnvironment.defaults) {
         self.defaults = defaults
         var values = Dictionary(uniqueKeysWithValues: ShortcutAction.allCases.map { ($0.rawValue, $0.standard) })
         if let data = defaults.data(forKey: "shortcuts.v1"), let saved = try? JSONDecoder().decode([String:KeyBinding].self, from: data) { values.merge(saved) { _, new in new } }

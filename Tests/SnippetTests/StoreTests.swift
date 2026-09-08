@@ -17,6 +17,7 @@ final class StoreTests {
         tests.testSearchAcrossFieldsAndFavorites()
         try tests.testCorruptFileIsPreserved()
         try tests.testLegacyMigration()
+        tests.testEnvironments()
         tests.testHistory()
         try tests.testFavoriteRetentionAndEditing()
         tests.testExpansion()
@@ -26,7 +27,7 @@ final class StoreTests {
         tests.testThemesAndNavigation()
         tests.testShortcuts()
         tests.testResultNavigation()
-        print("Passed 13 test groups: persistence, search, corruption, migration, history, expansion, capture, calculator, calculation history, themes/navigation, configurable shortcuts, result cycling")
+        print("Passed 14 test groups: persistence, search, corruption, migration, history, expansion, capture, calculator, calculation history, themes/navigation, configurable shortcuts, result cycling")
     }
     var directory: URL!
     func setUpWithError() throws {
@@ -78,6 +79,20 @@ final class StoreTests {
         XCTAssertEqual(store.items.first?.id, id)
         XCTAssertEqual(store.items.first?.keyword, nil)
         XCTAssertEqual(store.items.first?.text, "Keep me")
+    }
+    func testEnvironments() {
+        let production = AppEnvironment(bundleIdentifier: "local.snippet.app")
+        let development = AppEnvironment(bundleIdentifier: "local.snippet.dev")
+        XCTAssertFalse(production.isDevelopment)
+        XCTAssertTrue(development.isDevelopment)
+        XCTAssertEqual(AppEnvironment(bundleIdentifier: nil), development)
+        XCTAssertEqual(production.name, "Snippet")
+        XCTAssertEqual(development.name, "Snippet Dev")
+        XCTAssertTrue(production.bundleIdentifier != development.bundleIdentifier)
+        for filename in ["snippets.json", "history.json", "calculations.json"] {
+            XCTAssertEqual(production.dataURL(filename, root: directory), directory.appendingPathComponent("Snippet/" + filename))
+            XCTAssertEqual(development.dataURL(filename, root: directory), directory.appendingPathComponent("Snippet Dev/" + filename))
+        }
     }
     func testHistory() {
         let url = directory.appendingPathComponent("history.json")

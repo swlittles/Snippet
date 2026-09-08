@@ -13,6 +13,11 @@ rect(64,64,896,896,196,color(23,20,33))
 rect(360,144,496,576,96,color(119,102,159))
 rect(200,288,496,576,96,color(180,164,255))
 for (y,w): (CGFloat,CGFloat) in [(480,256),(588,192),(696,128)] { rect(320,y,w,44,22,color(33,26,57)) }
+if CommandLine.arguments.contains("--development") {
+    rect(510, 720, 410, 175, 45, color(255, 174, 64))
+    let text = NSString(string: "DEV")
+    text.draw(at: NSPoint(x: 570, y: 150), withAttributes: [.font: NSFont.boldSystemFont(ofSize: 112), .foregroundColor: color(33,26,57)])
+}
 logo.unlockFocus()
 func png(_ image: NSImage, size: Int, url: URL) throws {
     let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: size, pixelsHigh: size, bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!

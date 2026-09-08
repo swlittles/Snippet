@@ -25,7 +25,7 @@ struct ThemePalette: Codable, Equatable {
 final class ThemeStore: ObservableObject {
     @Published var palette: ThemePalette { didSet { save() } }
     let defaults: UserDefaults
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = AppEnvironment.defaults) {
         self.defaults = defaults
         palette = defaults.data(forKey: "themePalette").flatMap { try? JSONDecoder().decode(ThemePalette.self, from: $0) } ?? ThemePalette.presets[0]
     }

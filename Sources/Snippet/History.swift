@@ -27,7 +27,7 @@ final class History: ObservableObject {
     @Published var error: String?
     let url: URL
     init(url: URL? = nil) {
-        self.url = url ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Snippet/history.json")
+        self.url = url ?? AppEnvironment.current.dataURL("history.json")
         guard FileManager.default.fileExists(atPath: self.url.path) else { return }
         do { clips = try JSONDecoder().decode([Clip].self, from: Data(contentsOf: self.url)) }
         catch { self.error = "Couldn’t read clipboard history. Original data was preserved." }

@@ -80,8 +80,10 @@ git clone https://github.com/swlittles/Snippet.git
 cd Snippet
 bash scripts/test.sh
 bash scripts/build.sh
-open dist/Snippet.app
+open "dist/Snippet Dev.app"
 ```
+
+Local builds create **Snippet Dev** (Control–Option–Space), with separate data, preferences, Accessibility permission, and a DEV icon. The production app from Releases stays **Snippet** (Option–Space). See [development versus production](docs/DEVELOPMENT.md).
 
 Quit the app before replacing its installed build. Local builds are ad-hoc signed by default; their Accessibility grant may need refreshing after code changes. The build script refuses to overwrite a running app.
 

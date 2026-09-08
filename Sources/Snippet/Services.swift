@@ -12,7 +12,7 @@ final class ClipboardService {
     let enabled: () -> Bool
     var changeCount: Int
     var ticks = 0
-    init(history: History, board: NSPasteboard = .general, enabled: @escaping () -> Bool = { UserDefaults.standard.bool(forKey: "historyEnabled") }) {
+    init(history: History, board: NSPasteboard = .general, enabled: @escaping () -> Bool = { AppEnvironment.defaults.bool(forKey: "historyEnabled") }) {
         self.history = history; self.board = board; self.enabled = enabled; self.changeCount = board.changeCount
     }
     func start() {
@@ -54,7 +54,7 @@ final class ExpansionService: ObservableObject {
     init(store: Store) { self.store = store }
     func start() { timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.update() }; update() }
     func update() {
-        guard UserDefaults.standard.bool(forKey: "expansionEnabled") else { stop(); status = "Off"; return }
+        guard AppEnvironment.defaults.bool(forKey: "expansionEnabled") else { stop(); status = "Off"; return }
         guard AXIsProcessTrusted() else { stop(); status = "Needs Accessibility access"; return }
         guard tap == nil else { status = "Ready — type a snippet’s ;keyword"; return }
         let mask = (1 << CGEventType.keyDown.rawValue) | (1 << CGEventType.leftMouseDown.rawValue) | (1 << CGEventType.rightMouseDown.rawValue)
@@ -79,7 +79,7 @@ final class ExpansionService: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
         if event.getIntegerValueField(.eventSourceUserData) == generatedEventTag { return Unmanaged.passUnretained(event) }
-        guard type == .keyDown, !IsSecureEventInputEnabled(), UserDefaults.standard.bool(forKey: "expansionEnabled") else { matcher.reset(); return Unmanaged.passUnretained(event) }
+        guard type == .keyDown, !IsSecureEventInputEnabled(), AppEnvironment.defaults.bool(forKey: "expansionEnabled") else { matcher.reset(); return Unmanaged.passUnretained(event) }
         let front = NSWorkspace.shared.frontmostApplication
         guard let pid = front?.processIdentifier, pid != ProcessInfo.processInfo.processIdentifier, !ignoredApps.contains(front?.bundleIdentifier ?? "") else { matcher.reset(); return Unmanaged.passUnretained(event) }
         if pid != lastPID || Date().timeIntervalSince(lastTime) > 3 { matcher.reset() }

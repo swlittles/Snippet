@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Separate local Snippet Dev builds from production: bundle identity, data, settings, Accessibility permission, default hotkey, and DEV icon/menu label.
+- Default local builds to development; release scripts explicitly select production.
+- Verify both build variants in CI.
+
 ## 3.2.0 — initial public release
 
 - Added favorites for clips and snippets, favorite-first sorting, and a favorites-only filter.

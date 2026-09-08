@@ -15,6 +15,7 @@ else
 fi
 export SNIPPET_OUTPUT_DIR="$PWD/release-build"
 export SNIPPET_UNIVERSAL=1
+export SNIPPET_BUILD_VARIANT=production
 bash scripts/build.sh
 APP="$SNIPPET_OUTPUT_DIR/Snippet.app"
 mkdir -p release-assets

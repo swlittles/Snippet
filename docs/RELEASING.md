@@ -52,6 +52,8 @@ The release job imports the certificate into an ephemeral runner Keychain, remov
 
 If credentials are missing or notarization fails, fix setup and rerun the workflow. Manual dispatch accepts an existing version tag. An existing draft for that tag is completed after verification. If the release is already published, publication fails rather than overwriting public assets; inspect it deliberately before retrying. Don't move tags used by published releases.
 
+Release packaging explicitly selects `SNIPPET_BUILD_VARIANT=production`, regardless of the local default. Plain `scripts/build.sh` makes Snippet Dev; both variants are built and verified in CI.
+
 ## Local signed release
 
 Store a profile in Keychain with `xcrun notarytool store-credentials snippet-notary` (interactive prompts prevent passwords entering shell history). Then:

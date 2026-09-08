@@ -8,6 +8,8 @@ When you enable history, Snippet stores copied plain text, the source app's disp
 
 Files live in `~/Library/Application Support/Snippet/`. They are JSON, use owner-only file permissions, and are not encrypted by Snippet. macOS FileVault and your own backups have separate policies. Do not use the app to store passwords or other secrets that require a dedicated vault.
 
+Local development builds (Snippet Dev) use a separate `~/Library/Application Support/Snippet Dev/` folder and `local.snippet.dev` preferences domain. No production library or settings are copied automatically.
+
 ## Retention and deletion
 
 - Ordinary clips: seven days, at most 500 entries.

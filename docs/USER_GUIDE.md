@@ -4,11 +4,11 @@ A native macOS clipboard-history and text-snippet launcher inspired by Alfred’
 
 ## Run
 
-Open `dist/Snippet.app`. You may move it to Applications. The app stays in the menu bar.
+Use the production app from Releases for everyday use. Local source builds produce `dist/Snippet Dev.app` with separate data/settings and Control–Option–Space as the default hotkey. See [development versus production](DEVELOPMENT.md). The app stays in the menu bar.
 
 ```sh
 ./scripts/build.sh
-open dist/Snippet.app
+open "dist/Snippet Dev.app"
 ```
 
 ## Quick workflow

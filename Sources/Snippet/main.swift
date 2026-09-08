@@ -44,7 +44,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         panel.hasShadow = true
         panel.isOpaque = false
         panel.backgroundColor = .clear
-        panel.title = "Snippet"
+        panel.title = AppEnvironment.current.name
         panel.titleVisibility = .hidden
         panel.titlebarAppearsTransparent = true
         panel.isMovableByWindowBackground = true
@@ -58,7 +58,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         menuImage?.size = NSSize(width: 18, height: 18)
         menuImage?.isTemplate = true
         status.button?.image = menuImage
-        status.button?.setAccessibilityLabel("Snippet")
+        status.button?.setAccessibilityLabel(AppEnvironment.current.name)
+        status.button?.toolTip = AppEnvironment.current.name
+        if AppEnvironment.current.isDevelopment {
+            status.length = NSStatusItem.variableLength
+            status.button?.title = " Dev"
+        }
         var type = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
         InstallEventHandler(GetApplicationEventTarget(), { _, _, context in
             guard let context else { return OSStatus(eventNotHandledErr) }
@@ -106,7 +111,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     func configureMenus() {
         let main = NSMenu()
-        let appItem = NSMenuItem(); let appMenu = NSMenu(title: "Snippet")
+        let appItem = NSMenuItem(); let appMenu = NSMenu(title: AppEnvironment.current.name)
         appMenu.addItem(menuItem(.settings, selector: #selector(settings)))
         appMenu.addItem(.separator()); appMenu.addItem(menuItem(.quit, selector: #selector(quit)))
         appItem.submenu = appMenu; main.addItem(appItem)
@@ -120,7 +125,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         viewItem.submenu = view; main.addItem(viewItem)
         NSApp.mainMenu = main
         let menu = NSMenu()
-        let open = NSMenuItem(title: "Open Snippet    " + shortcuts.label(.toggle), action: #selector(show), keyEquivalent: ""); open.target = self; menu.addItem(open)
+        let open = NSMenuItem(title: "Open " + AppEnvironment.current.name + "    " + shortcuts.label(.toggle), action: #selector(show), keyEquivalent: ""); open.target = self; menu.addItem(open)
         let capture = NSMenuItem(title: "Save Clipboard as Snippet", action: #selector(capture), keyEquivalent: ""); capture.target = self; menu.addItem(capture)
         menu.addItem(menuItem(.settings, selector: #selector(settings)))
         menu.addItem(.separator())

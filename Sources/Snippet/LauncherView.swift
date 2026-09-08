@@ -19,7 +19,7 @@ final class LauncherModel: ObservableObject {
     @Published var expression = "" { didSet { calcError = nil; calcResult = nil } }
     @Published var calcResult: Double?
     @Published var calcError: String?
-    @Published var degrees = UserDefaults.standard.bool(forKey: "calculatorDegrees") { didSet { UserDefaults.standard.set(degrees, forKey: "calculatorDegrees"); calcResult = nil; calcError = nil } }
+    @Published var degrees = AppEnvironment.defaults.bool(forKey: "calculatorDegrees") { didSet { AppEnvironment.defaults.set(degrees, forKey: "calculatorDegrees"); calcResult = nil; calcError = nil } }
     @Published var selected: UUID?
     @Published var editingClip: Clip?
     @Published var favoritesOnly = false { didSet { selected = nil; refresh() } }
@@ -132,7 +132,7 @@ struct LauncherView: View {
     @ObservedObject var model: LauncherModel
     @ObservedObject var store: Store
     @ObservedObject var history: History
-    @AppStorage("historyEnabled") var historyEnabled = false
+    @AppStorage("historyEnabled", store: AppEnvironment.defaults) var historyEnabled = false
     @FocusState private var searchFocused: Bool
     @EnvironmentObject var theme: ThemeStore
     @EnvironmentObject var shortcuts: ShortcutStore
@@ -173,6 +173,9 @@ struct LauncherView: View {
     var searchBar: some View {
         HStack(spacing: 14) {
             LogoMark(color: theme.accent).frame(width: 27, height: 27)
+            if AppEnvironment.current.isDevelopment {
+                Text("DEV").font(.system(size: 10, weight: .bold)).padding(5).background(theme.selection, in: RoundedRectangle(cornerRadius: 4)).accessibilityLabel("Development build")
+            }
             TextField(model.tab == .calculator ? "Calculate…  e.g. (24 + 18) / 6" : "Search copied text or type snip…", text: model.tab == .calculator ? $model.expression : $model.query).textFieldStyle(.plain).font(.system(size: 24)).focused($searchFocused).accessibilityLabel(model.tab == .calculator ? "Calculator expression" : "Search clipboard and snippets")
             if !(model.tab == .calculator ? model.expression : model.query).isEmpty { Button { if model.tab == .calculator { model.expression = "" } else { model.query = "" } } label: { Image(systemName: "xmark.circle.fill") }.buttonStyle(PointerButtonStyle()).help("Clear search") }
         }.padding(22)
@@ -265,13 +268,13 @@ struct SettingsView: View {
     @ObservedObject var history: History
     @ObservedObject var expansion: ExpansionService
     let app: AppDelegate
-    @AppStorage("historyEnabled") var historyEnabled = false
-    @AppStorage("expansionEnabled") var expansionEnabled = false
+    @AppStorage("historyEnabled", store: AppEnvironment.defaults) var historyEnabled = false
+    @AppStorage("expansionEnabled", store: AppEnvironment.defaults) var expansionEnabled = false
     @Environment(\.dismiss) var dismiss
     @State var clear = false
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            HStack { LogoMark(color: theme.accent).frame(width: 32, height: 32); Text("Snippet settings").font(.title2.bold()); Spacer() }
+            HStack { LogoMark(color: theme.accent).frame(width: 32, height: 32); Text(AppEnvironment.current.name + " settings").font(.title2.bold()); Spacer() }
             Picker("Settings section", selection: $section) { Text("General").tag(0); Text("Appearance").tag(1); Text("Shortcuts").tag(2) }.pickerStyle(.segmented)
             if section == 1 { ThemeSettingsView() } else if section == 2 { ShortcutsSettingsView() } else { general }
             Divider()

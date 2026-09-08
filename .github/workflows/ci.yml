@@ -8,6 +8,11 @@ permissions:
 jobs:
   test:
     runs-on: macos-14
+    strategy:
+      matrix:
+        variant: [development, production]
+    env:
+      SNIPPET_BUILD_VARIANT: ${{ matrix.variant }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Validate shell scripts
@@ -20,5 +25,12 @@ jobs:
         run: bash scripts/build.sh
       - name: Verify bundle
         run: |
-          codesign --verify --strict dist/Snippet.app
-          lipo dist/Snippet.app/Contents/MacOS/Snippet -verify_arch arm64 x86_64
+          if [ "$SNIPPET_BUILD_VARIANT" = development ]; then
+            app="dist/Snippet Dev.app"; bundle=local.snippet.dev
+          else
+            app="dist/Snippet.app"; bundle=local.snippet.app
+          fi
+          codesign --verify --strict "$app"
+          executable=$(/usr/libexec/PlistBuddy -c 'Print CFBundleExecutable' "$app/Contents/Info.plist")
+          lipo "$app/Contents/MacOS/$executable" -verify_arch arm64 x86_64
+          test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$app/Contents/Info.plist")" = "$bundle"
