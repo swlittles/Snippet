@@ -34,7 +34,9 @@ final class StoreTests {
         try tests.testLibrarySync()
         try tests.testImagePersistence()
         tests.testMenuTrackingSessions()
-        print("Passed 21 test groups: persistence, search, corruption, migration, history, expansion, capture, calculator, calculation history, themes/navigation, configurable shortcuts, result cycling")
+        tests.testUsageFrecency()
+        try tests.testAppSearch()
+        print("Passed 23 test groups: persistence, search, corruption, migration, history, expansion, capture, calculator, calculation history, themes/navigation, configurable shortcuts, result cycling, usage, app search")
     }
     func testPowerTools() throws {
         XCTAssertEqual(SnippetTemplate.fields("Hi {{name}} {{date}} {{name}} {{project}} {{date:MMMM}} {{cursor}}"), ["name", "project"])
@@ -330,6 +332,90 @@ final class StoreTests {
         service.poll()
         enabled = true; service.poll()
         XCTAssertEqual(history.clips.count, 1)
+        // Office-style copies carry a rendering of the text; the text is what was copied.
+        board.clearContents()
+        board.declareTypes([.string, .tiff], owner: nil)
+        board.setString("cell value", forType: .string)
+        let rendering = NSImage(size: NSSize(width: 4, height: 4))
+        rendering.lockFocus(); NSColor.red.setFill(); NSRect(x: 0, y: 0, width: 4, height: 4).fill(); rendering.unlockFocus()
+        XCTAssertTrue(board.setData(rendering.tiffRepresentation!, forType: .tiff))
+        XCTAssertNotNil(NSImage(pasteboard: board))
+        service.poll()
+        XCTAssertEqual(history.clips.first?.text, "cell value")
+        XCTAssertEqual(history.clips.first?.imageName, nil)
+        XCTAssertTrue(ClipboardService.prefersImage([.tiff, .string], hasText: true))
+        XCTAssertFalse(ClipboardService.prefersImage([NSPasteboard.PasteboardType("com.example.native"), .html, .png], hasText: true))
+        XCTAssertTrue(ClipboardService.prefersImage([.html, .png], hasText: false))
+        // Rich-text-only copies are still recorded as text.
+        let rich = NSAttributedString(string: "rich only")
+        board.clearContents()
+        board.setData(rich.rtf(from: NSRange(location: 0, length: rich.length), documentAttributes: [:])!, forType: .rtf)
+        service.poll()
+        XCTAssertEqual(history.clips.first?.text, "rich only")
+        // Re-copying existing text counts as a use; the first copy does not.
+        let usage = UsageStore(url: directory.appendingPathComponent("capture-usage.json"))
+        let counted = ClipboardService(history: history, usage: usage, board: board, enabled: { true })
+        board.clearContents(); board.setString("fresh", forType: .string); counted.poll()
+        let fresh = history.clips.first!.id
+        XCTAssertEqual(usage.count(UsageStore.key(clip: fresh)), 0)
+        board.clearContents(); board.setString("fresh", forType: .string); counted.poll()
+        XCTAssertEqual(history.clips.first?.id, fresh)
+        XCTAssertEqual(usage.count(UsageStore.key(clip: fresh)), 1)
+    }
+    func testUsageFrecency() {
+        let url = directory.appendingPathComponent("usage.json")
+        let usage = UsageStore(url: url), now = Date()
+        usage.record("clip:a", now: now)
+        XCTAssertFalse(usage.isFrequent("clip:a", now: now))
+        usage.record("clip:a", now: now)
+        XCTAssertTrue(usage.isFrequent("clip:a", now: now))
+        // Temporary heavy use fades on its own.
+        XCTAssertFalse(usage.isFrequent("clip:a", now: now.addingTimeInterval(7 * 86400)))
+        for _ in 0..<40 { usage.record("clip:b", now: now) }
+        XCTAssertEqual(usage.count("clip:b"), UsageStore.keptUses)
+        XCTAssertEqual(UsageStore(url: url).count("clip:a"), 2)
+        usage.prune(keeping: { $0 != "clip:b" }, now: now)
+        XCTAssertEqual(usage.count("clip:b"), 0)
+        usage.prune(keeping: { _ in true }, now: now.addingTimeInterval(UsageStore.maximumAge + 1))
+        XCTAssertTrue(UsageStore(url: url).uses.isEmpty)
+        let bad = directory.appendingPathComponent("bad-usage.json"), bytes = Data("broken".utf8)
+        try? bytes.write(to: bad)
+        let corrupt = UsageStore(url: bad); corrupt.record("clip:c")
+        XCTAssertNotNil(corrupt.error)
+        XCTAssertEqual(try? Data(contentsOf: bad), bytes)
+    }
+    func testAppSearch() throws {
+        let root = directory.appendingPathComponent("Apps")
+        for path in ["Safari.app", "Visual Studio Code.app", "TextEdit.app", "Utilities/Activity Monitor.app", "Utilities/Terminal.app", "Notes.app", "Notes Helper.app", "Deep/A/B/C/Hidden.app"] {
+            try FileManager.default.createDirectory(at: root.appendingPathComponent(path).appendingPathComponent("Contents"), withIntermediateDirectories: true)
+        }
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("Safari.app/Contents/Nested.app"), withIntermediateDirectories: true)
+        // Like /Applications/Safari.app: a symlink carrying the hidden flag.
+        let target = directory.appendingPathComponent("Cryptex/Maps.app/Contents")
+        try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
+        var link = root.appendingPathComponent("Maps.app")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target.deletingLastPathComponent())
+        var hidden = URLResourceValues(); hidden.isHidden = true; try link.setResourceValues(hidden)
+        let apps = AppCatalog.scan([root, root.appendingPathComponent("Safari.app")])
+        XCTAssertEqual(apps.map(\.name), ["Activity Monitor", "Maps", "Notes", "Notes Helper", "Safari", "Terminal", "TextEdit", "Visual Studio Code"])
+        XCTAssertEqual(AppCatalog.scan([root]).first { $0.name == "Safari" }?.id, apps.first { $0.name == "Safari" }?.id)
+        let usage = UsageStore(url: directory.appendingPathComponent("app-usage.json"))
+        func names(_ query: String, minimum: Double = 0) -> [String] { AppSearch.rank(apps, query: query, usage: usage, minimumScore: minimum).map(\.name) }
+        XCTAssertEqual(names("saf"), ["Safari"])
+        XCTAssertEqual(names("notes"), ["Notes", "Notes Helper"])
+        XCTAssertEqual(names("vsc"), ["Visual Studio Code"])
+        XCTAssertEqual(names("code"), ["Visual Studio Code"])
+        XCTAssertEqual(names("edit"), ["TextEdit"])
+        XCTAssertEqual(names("act mon"), ["Activity Monitor"])
+        XCTAssertEqual(names("ermin"), ["Terminal"])
+        XCTAssertEqual(names("ermin", minimum: 50), [])
+        XCTAssertEqual(names("zzz"), [])
+        XCTAssertEqual(names("").count, apps.count)
+        // Opening an app often lifts it among equally good matches, but not past an exact name.
+        let helper = apps.first { $0.name == "Notes Helper" }!
+        for _ in 0..<10 { usage.record(helper.usageKey) }
+        XCTAssertEqual(names("no"), ["Notes Helper", "Notes"])
+        XCTAssertEqual(names("notes"), ["Notes", "Notes Helper"])
     }
     func testCalculator() throws {
         let examples: [(String, Double)] = [
@@ -386,9 +472,10 @@ final class StoreTests {
         XCTAssertEqual(LauncherTab.command("1"), .history)
         XCTAssertEqual(LauncherTab.command("2"), .snippets)
         XCTAssertEqual(LauncherTab.command("3"), .calculator)
+        XCTAssertEqual(LauncherTab.command("4"), .apps)
         XCTAssertEqual(LauncherTab.command("9"), nil)
-        XCTAssertEqual(LauncherTab.history.cycled(backward: true), .calculator)
-        XCTAssertEqual(LauncherTab.calculator.cycled(), .history)
+        XCTAssertEqual(LauncherTab.history.cycled(backward: true), .apps)
+        XCTAssertEqual(LauncherTab.apps.cycled(), .history)
     }
     func testShortcuts() {
         let name = "SnippetShortcutsTest-" + UUID().uuidString

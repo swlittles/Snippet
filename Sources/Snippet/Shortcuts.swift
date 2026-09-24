@@ -4,7 +4,7 @@ import Carbon
 
 enum ShortcutContext { case launcher, calculator, editor, settings }
 enum ShortcutAction: String, CaseIterable, Identifiable, Codable {
-    case toggle, clipboard, snippets, calculator, nextSection, previousSection, workspace, enqueue, pasteNext
+    case toggle, clipboard, snippets, calculator, apps, nextSection, previousSection, workspace, enqueue, pasteNext
     case nextResult, previousResult, downResult, upResult, pasteResult, copyResult, newSnippet, saveSnippet, editSnippet, favorite, preview, settings, close
     case calculate, calculateEquals, copyCalculation, saveEditor, cancelEditor, closeSettings, quit
     case undo, redo, cut, copy, paste, selectAll
@@ -18,6 +18,7 @@ enum ShortcutAction: String, CaseIterable, Identifiable, Codable {
         case .clipboard: return "Show Clipboard"
         case .snippets: return "Show Snippets"
         case .calculator: return "Show Calculator"
+        case .apps: return "Show Apps"
         case .nextSection: return "Next section"
         case .previousSection: return "Previous section"
         case .nextResult: return "Next result (wrap)"
@@ -51,7 +52,7 @@ enum ShortcutAction: String, CaseIterable, Identifiable, Codable {
     var group: String {
         switch self {
         case .toggle: return "Global"
-        case .clipboard, .snippets, .calculator, .nextSection, .previousSection: return "Sections"
+        case .clipboard, .snippets, .calculator, .apps, .nextSection, .previousSection: return "Sections"
         case .calculate, .calculateEquals, .copyCalculation: return "Calculator"
         case .saveEditor, .cancelEditor: return "Editor"
         case .closeSettings, .quit, .settings: return "App"
@@ -65,7 +66,7 @@ enum ShortcutAction: String, CaseIterable, Identifiable, Codable {
         case .saveEditor, .cancelEditor: return [.editor]
         case .closeSettings: return [.settings]
         case .calculate, .calculateEquals, .copyCalculation: return [.calculator]
-        case .workspace, .clipboard, .snippets, .calculator, .nextSection, .previousSection, .newSnippet, .settings, .close: return [.launcher, .calculator]
+        case .workspace, .clipboard, .snippets, .calculator, .apps, .nextSection, .previousSection, .newSnippet, .settings, .close: return [.launcher, .calculator]
         default: return [.launcher]
         }
     }
@@ -79,6 +80,7 @@ enum ShortcutAction: String, CaseIterable, Identifiable, Codable {
         case .clipboard: return .init(18, cmd)
         case .snippets: return .init(19, cmd)
         case .calculator: return .init(20, cmd)
+        case .apps: return .init(21, cmd)
         case .nextSection: return .init(48, .control)
         case .previousSection: return .init(48, [.control, .shift])
         case .nextResult: return .init(48)

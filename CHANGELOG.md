@@ -1,9 +1,15 @@
 # Changelog
 
-## Unreleased
+## 3.5.0
 
 - Make the menu-bar icon toggle its menu on mouse-down without reopening on mouse-up.
 - Ignore stale outside-click callbacks when reopening the menu and activate before menu tracking begins.
+- Paste on a single click. A double-click's second click is absorbed instead of landing in the destination.
+- Make direct paste more reliable: wait for the destination window to settle before Command–V, use cooperative activation on macOS 14+, fall back to hiding Snippet, and remember the last app across every way of opening the launcher.
+- Capture copies that were previously missed: record text instead of the picture Office/iWork add alongside it, read rich-text-only copies, keep polling during menus and drags, and prevent App Nap from delaying capture.
+- Add a **Frequent** filter (flame) for clips and snippets used several times in the last few days. Scores decay, so temporary heavy use fades without unfavoriting anything.
+- Add **Apps** (Command–4) to search and open installed apps. Matching apps also appear after text results in Clipboard and Snippets, so Return opens an app when nothing else matches.
+- Speed up the launcher: results are computed once per change, row dates are formatted only for visible rows, and image thumbnails are decoded once.
 
 ## 3.4.0
 

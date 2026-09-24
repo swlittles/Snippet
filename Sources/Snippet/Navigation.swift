@@ -1,21 +1,21 @@
 import Foundation
 
 enum LauncherTab: String, CaseIterable {
-    case history = "Clipboard", snippets = "Snippets", calculator = "Calculator"
+    case history = "Clipboard", snippets = "Snippets", calculator = "Calculator", apps = "Apps"
     func cycled(backward: Bool = false) -> LauncherTab {
         let tabs = Self.allCases
         let index = tabs.firstIndex(of: self) ?? 0
         return tabs[(index + (backward ? tabs.count - 1 : 1)) % tabs.count]
     }
     static func command(_ key: String) -> LauncherTab? {
-        guard let number = Int(key), (1...3).contains(number) else { return nil }
+        guard let number = Int(key), (1...allCases.count).contains(number) else { return nil }
         return allCases[number - 1]
     }
 }
 
 extension LauncherTab {
     var shortcutAction: ShortcutAction {
-        switch self { case .history: return .clipboard; case .snippets: return .snippets; case .calculator: return .calculator }
+        switch self { case .history: return .clipboard; case .snippets: return .snippets; case .calculator: return .calculator; case .apps: return .apps }
     }
 }
 enum ResultNavigation {

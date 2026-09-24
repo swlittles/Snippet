@@ -18,12 +18,15 @@ open "dist/Snippet Dev.app"
 3. Use **Up/Down**, then **Return** to paste into the app you were using and close the launcher.
 4. Press **Command–S** on a history result to save it permanently as a snippet.
 5. Press **Command–2** for saved snippets, or type `snip ` followed by a title or keyword.
+6. Press **Command–4** for apps. Type part of a name (`saf`), word starts (`sys set`) or initials (`vsc`) and press **Return** to open it; **Command–Return** shows it in Finder. From Clipboard or Snippets, matching apps are listed after your text, so Return opens the app when nothing else matches.
 
-Other controls: **Command–Return** copies and closes; **Command–1 / 2 / 3** switches to Clipboard / Snippets / Calculator; **Tab / Shift–Tab** selects the next/previous result within Clipboard or Snippets (wrapping at the ends); **Command–N** creates a snippet; **Command–E** edits the selected clip or snippet in place; **Command–Shift–F** toggles its favorite status; **Command–P** toggles the full-text preview; **Command–comma** opens settings; **Escape** dismisses. Double-click a result to paste; right-click for copy, save, or removal. Clicking outside dismisses the launcher.
+Other controls: **Command–Return** copies and closes; **Command–1 / 2 / 3 / 4** switches to Clipboard / Snippets / Calculator / Apps; **Tab / Shift–Tab** selects the next/previous result within Clipboard or Snippets (wrapping at the ends); **Command–N** creates a snippet; **Command–E** edits the selected clip or snippet in place; **Command–Shift–F** toggles its favorite status; **Command–P** toggles the full-text preview; **Command–comma** opens settings; **Escape** dismisses. Click a result to paste it (the same as Return); right-click for copy, save, or removal. Clicking outside dismisses the launcher.
 
 ## Favorites and editing
 
 Click the star on any clip or snippet to favorite it. Favorites sort first; the star beside the section tabs filters the list to favorites only. Favorite clips are exempt from any age or count cleanup rules you choose and remain favorites when copied again. Clear clipboard history keeps favorites; individual removal still deletes them. Unfavoriting makes a clip eligible for normal retention cleanup based on its capture date.
+
+The flame beside the star shows **frequently used** clips and snippets, most used first. Pasting or copying from Snippet, or copying the same text again in another app, counts as a use. Each use loses half its weight every three days, so something you pasted several times this week appears without being favorited and drops out once you stop using it. Frequent items also show a small flame in the normal list. Opening apps from Snippet ranks them higher in app results the same way.
 
 Click a result’s pencil or press **Command–E** to edit it. Clip edits update the existing entry and preserve its source and capture date; snippet edits include title, text, tags, keyword, expansion, and favorite status. **Command–S** saves editor changes; **Escape** cancels. From the result list, **Command–S** still saves a clip as a separate snippet. Editing never changes text already pasted into another app.
 
@@ -80,7 +83,7 @@ The app’s new stacked-card logo appears in the launcher, settings, menu bar, a
 
 ## History and privacy
 
-History and expansion start disabled. Enable each from the app when wanted. History captures **plain text**, including multiline text and URLs, up to 100 KB per clip. It keeps clips indefinitely without a count limit by default and moves recopied text to the top. Settings → Storage offers optional age/count cleanup; applying a rule confirms any immediate deletions. Favorites are exempt from age and capacity cleanup. Images, rich text formatting, and file objects are not captured.
+History and expansion start disabled. Enable each from the app when wanted. History captures **plain text**, including multiline text and URLs, up to 100 KB per clip. It keeps clips indefinitely without a count limit by default and moves recopied text to the top. Settings → Storage offers optional age/count cleanup; applying a rule confirms any immediate deletions. Favorites are exempt from age and capacity cleanup. When a copy includes both text and a picture of that text, as Office and iWork copies do, the text is recorded. Rich-text-only copies are recorded as plain text. Formatting and file objects are not captured.
 
 Pause capture in Settings, remove individual clips through their context menu, or clear history with confirmation. Clearing history does not delete favorite clips or saved snippets. Clipboard data marked concealed, transient, or auto-generated is ignored, along with known password apps. These filters cannot recognize every sensitive text value copied by every app; history is local plain text, not a password vault.
 

@@ -21,7 +21,8 @@ struct Clip: Codable, Identifiable, Equatable {
         favorite = try values.decodeIfPresent(Bool.self, forKey: .favorite) ?? false
         imageName = try values.decodeIfPresent(String.self, forKey: .imageName)
     }
-    var title: String { String(text.split(separator: "\n", omittingEmptySubsequences: true).first.map(String.init)?.prefix(90) ?? (imageName == nil ? "Text" : "Image").prefix(90)) }
+    // maxSplits avoids splitting every line of a long clip just to read the first.
+    var title: String { String(text.split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: true).first.map(String.init)?.prefix(90) ?? (imageName == nil ? "Text" : "Image").prefix(90)) }
 }
 
 /// Zero means unlimited. Retention is a local preference, never a product quota.
@@ -69,14 +70,16 @@ final class History: ObservableObject {
         retention().retaining(candidates, now: now)
     }
 
-    func record(_ text: String, source: String, now: Date = Date()) {
-        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, text.utf8.count <= 100_000 else { return }
+    /// Returns the recorded clip's ID, and whether the same text was already in history.
+    @discardableResult func record(_ text: String, source: String, now: Date = Date()) -> (id: UUID, recopied: Bool)? {
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, text.utf8.count <= 100_000 else { return nil }
         // Re-copying keeps the favorite's identity and protection, including edited duplicates.
-        var clip = clips.first { $0.imageName == nil && $0.text == text && $0.favorite } ?? clips.first { $0.imageName == nil && $0.text == text } ?? Clip(text: text, source: source, date: now)
+        let existing = clips.first { $0.imageName == nil && $0.text == text && $0.favorite } ?? clips.first { $0.imageName == nil && $0.text == text }
+        var clip = existing ?? Clip(text: text, source: source, date: now)
         clip.date = now; clip.source = source
         var next = clips.filter { $0.id != clip.id && ($0.imageName != nil || $0.text != text || $0.favorite) }
         next.insert(clip, at: 0)
-        persist(retained(next, now: now))
+        return persist(retained(next, now: now)) ? (clip.id, existing != nil) : nil
     }
     func prune(now: Date = Date()) {
         let next = retained(clips, now: now)

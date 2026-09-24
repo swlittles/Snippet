@@ -19,6 +19,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     let calculator = CalculatorStore()
     let theme = ThemeStore()
     let workspace = WorkspaceStore()
+    let usage = UsageStore()
+    let apps = AppCatalog()
+    let clickGuard = FollowUpClickGuard()
     lazy var librarySync = LibrarySync(store: store, history: history, workspace: workspace, theme: theme)
     let shortcuts = ShortcutStore()
     let updates = UpdateService()
@@ -30,6 +33,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     var hotkey: EventHotKeyRef?
     var eventHandler: EventHandlerRef?
     var previousApp: NSRunningApplication?
+    /// The most recently activated other app, whichever way Snippet was opened.
+    private var lastExternalApp: NSRunningApplication?
     var model: LauncherModel!
     var hotkeyMessage = ""
     private var statusMenu: NSMenu?
@@ -40,7 +45,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         model = LauncherModel(store: store, history: history, calculator: calculator, app: self)
-        clipboard = ClipboardService(history: history)
+        clipboard = ClipboardService(history: history, usage: usage)
+        lastExternalApp = externalFrontmostApp()
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] note in
+            guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+                  app.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return }
+            self?.lastExternalApp = app
+        }
+        apps.refresh()
         expansion = ExpansionService(store: store)
         clipboard.start()
         expansion.start()
@@ -151,7 +163,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         }
         editItem.submenu = edit; main.addItem(editItem)
         let viewItem = NSMenuItem(); let view = NSMenu(title: "View")
-        for action: ShortcutAction in [.clipboard,.snippets,.calculator,.workspace,.enqueue,.pasteNext,.nextSection,.previousSection] { view.addItem(menuItem(action)) }
+        for action: ShortcutAction in [.clipboard,.snippets,.calculator,.apps,.workspace,.enqueue,.pasteNext,.nextSection,.previousSection] { view.addItem(menuItem(action)) }
         viewItem.submenu = view; main.addItem(viewItem)
         NSApp.mainMenu = main
         let menu = NSMenu()
@@ -175,8 +187,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     @objc func toggleStatusMenu() {
         if let menu = trackingStatusMenu { menu.cancelTracking(); return }
         guard let menu = statusMenu, let button = status.button else { return }
-        if !panel.isVisible, let front = NSWorkspace.shared.frontmostApplication,
-           front.processIdentifier != ProcessInfo.processInfo.processIdentifier { previousApp = front }
+        if !panel.isVisible { previousApp = externalFrontmostApp() ?? lastExternalApp ?? previousApp }
         // Activate before entering AppKit's tracking loop, never from menuWillOpen.
         NSApp.activate(ignoringOtherApps: true)
         button.highlight(true)
@@ -203,19 +214,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         shortcuts.releaseToggle()
     }
     func toggle() { trackingStatusMenu?.cancelTracking(); if panel.isVisible { hide() } else { show() } }
+    func externalFrontmostApp() -> NSRunningApplication? {
+        guard let front = NSWorkspace.shared.frontmostApplication, front.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return nil }
+        return front
+    }
     @objc func show() {
         if !panel.isVisible {
-            let front = NSWorkspace.shared.frontmostApplication
-            if front?.processIdentifier != ProcessInfo.processInfo.processIdentifier { previousApp = front }
+            previousApp = externalFrontmostApp() ?? lastExternalApp ?? previousApp
             let screen = NSScreen.screens.first(where: { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) }) ?? NSScreen.main
             if let frame = screen?.visibleFrame { panel.setFrameOrigin(NSPoint(x: frame.midX - 340, y: frame.midY - 170)) }
         }
         history.prune()
+        let clipKeys = Set(history.clips.map { UsageStore.key(clip: $0.id) }), snippetKeys = Set(store.items.map { UsageStore.key(snippet: $0.id) })
+        usage.prune { $0.hasPrefix("app:") || clipKeys.contains($0) || snippetKeys.contains($0) }
+        apps.refresh()
         model.query = ""
         model.message = hotkeyMessage
         model.refresh()
         model.focusToken = UUID()
         resizeLauncher()
+        // The paste fallback hides the app to hand focus back.
+        if NSApp.isHidden { NSApp.unhide(nil) }
         NSApp.activate(ignoringOtherApps: true)
         panel.makeKeyAndOrderFront(nil)
     }
@@ -229,7 +248,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     }
     func hide(restoreFocus: Bool = true) {
         panel.orderOut(nil)
-        if restoreFocus && NSApp.isActive { previousApp?.activate(options: [.activateIgnoringOtherApps]) }
+        if restoreFocus && NSApp.isActive, let previousApp { activate(previousApp) }
+    }
+    /// macOS 14 activation is cooperative: yield to the target, then ask it to come forward.
+    func activate(_ target: NSRunningApplication) {
+        if #available(macOS 14, *) {
+            NSApp.yieldActivation(to: target)
+            target.activate(from: .current, options: [])
+        } else { target.activate(options: [.activateIgnoringOtherApps]) }
     }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool { show(); return true }
     func windowDidResignKey(_ notification: Notification) {
@@ -280,14 +306,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
             return
         }
         hide(restoreFocus: false)
-        target.activate(options: [.activateIgnoringOtherApps])
-        attemptPaste(target, remaining: 10, cursorMoves: cursorMoves, completion: completion)
+        activate(target)
+        attemptPaste(target, started: Date(), cursorMoves: cursorMoves, completion: completion)
     }
-    func attemptPaste(_ target: NSRunningApplication, remaining: Int, cursorMoves: Int = 0, completion: (() -> Void)? = nil) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+    /// Waits for the destination to come forward, then gives its window a moment
+    /// to regain keyboard focus. Frontmost alone isn't enough: a Command–V sent
+    /// during the switch is often dropped.
+    func attemptPaste(_ target: NSRunningApplication, started: Date, retried: Bool = false, cursorMoves: Int = 0, completion: (() -> Void)? = nil) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { [weak self] in
             guard let self else { return }
-            if NSWorkspace.shared.frontmostApplication?.processIdentifier == target.processIdentifier {
-                postKey(CGKeyCode(kVK_ANSI_V), flags: .maskCommand)
+            let elapsed = Date().timeIntervalSince(started)
+            guard NSWorkspace.shared.frontmostApplication?.processIdentifier == target.processIdentifier else {
+                if elapsed > 1.5 || target.isTerminated {
+                    self.show(); self.model.message = "Copied, but \(target.localizedName ?? "the destination") didn’t come to the front. Paste with Command–V."
+                    return
+                }
+                // If a direct activation is refused, hiding Snippet returns focus to the app that had it before.
+                if !retried && elapsed > 0.35 { NSApp.hide(nil) }
+                self.attemptPaste(target, started: started, retried: retried || elapsed > 0.35, cursorMoves: cursorMoves, completion: completion)
+                return
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+                guard NSWorkspace.shared.frontmostApplication?.processIdentifier == target.processIdentifier else {
+                    self.attemptPaste(target, started: started, retried: retried, cursorMoves: cursorMoves, completion: completion)
+                    return
+                }
+                postPaste()
                 completion?()
                 if cursorMoves > 0 {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
@@ -295,9 +339,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
                         for _ in 0..<cursorMoves { postKey(CGKeyCode(kVK_LeftArrow)) }
                     }
                 }
-            } else if remaining > 0 { self.attemptPaste(target, remaining: remaining - 1, cursorMoves: cursorMoves, completion: completion) }
-            else { self.show(); self.model.message = "Copied, but the destination didn’t activate. Paste with Command–V." }
+            }
         }
+    }
+    func open(_ entry: AppEntry) {
+        usage.record(entry.usageKey)
+        hide(restoreFocus: false)
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        NSWorkspace.shared.openApplication(at: entry.url, configuration: configuration) { [weak self] _, error in
+            guard let error else { return }
+            DispatchQueue.main.async { self?.show(); self?.model.message = "Couldn’t open \(entry.name): \(error.localizedDescription)" }
+        }
+    }
+    func reveal(_ entry: AppEntry) {
+        hide(restoreFocus: false)
+        NSWorkspace.shared.activateFileViewerSelecting([entry.url])
     }
 }
 

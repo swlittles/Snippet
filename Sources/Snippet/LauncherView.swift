@@ -1,5 +1,9 @@
 import SwiftUI
 import AppKit
+import Combine
+import ImageIO
+
+enum ResultFilter { case all, favorites, frequent }
 
 struct ResultItem: Identifiable {
     var id: UUID
@@ -9,6 +13,30 @@ struct ResultItem: Identifiable {
     var favorite: Bool
     var snippet: SnippetItem?
     var clip: Clip? = nil
+    var app: AppEntry? = nil
+    var usageKey = ""
+    var frequent = false
+    var uses = 0
+}
+
+/// Decoded images, so scrolling and typing don't reread and rescale screenshots on every render.
+enum ImageCache {
+    private static let thumbnails = NSCache<NSURL, NSImage>()
+    private static let images: NSCache<NSURL, NSImage> = { let cache = NSCache<NSURL, NSImage>(); cache.countLimit = 8; return cache }()
+    static func thumbnail(_ url: URL) -> NSImage? {
+        if let image = thumbnails.object(forKey: url as NSURL) { return image }
+        let options = [kCGImageSourceCreateThumbnailFromImageAlways: true, kCGImageSourceCreateThumbnailWithTransform: true, kCGImageSourceThumbnailMaxPixelSize: 120] as CFDictionary
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil), let thumbnail = CGImageSourceCreateThumbnailAtIndex(source, 0, options) else { return nil }
+        let image = NSImage(cgImage: thumbnail, size: .zero)
+        thumbnails.setObject(image, forKey: url as NSURL)
+        return image
+    }
+    static func image(_ url: URL) -> NSImage? {
+        if let image = images.object(forKey: url as NSURL) { return image }
+        guard let image = NSImage(contentsOf: url) else { return nil }
+        images.setObject(image, forKey: url as NSURL)
+        return image
+    }
 }
 final class LauncherModel: ObservableObject {
     let store: Store
@@ -24,7 +52,10 @@ final class LauncherModel: ObservableObject {
     @Published var degrees = AppEnvironment.defaults.bool(forKey: "calculatorDegrees") { didSet { AppEnvironment.defaults.set(degrees, forKey: "calculatorDegrees"); calcResult = nil; calcDisplay = nil; calcError = nil } }
     @Published var selected: UUID?
     @Published var editingClip: Clip?
-    @Published var favoritesOnly = false { didSet { selected = nil; refresh() } }
+    @Published var filter: ResultFilter = .all { didSet { selected = nil; refresh() } }
+    /// Cached: every render reads results several times, and search scans the whole history.
+    @Published private(set) var results: [ResultItem] = []
+    private var subscriptions: Set<AnyCancellable> = []
     @Published var editing: SnippetItem?
     @Published var settings = false
     @Published var workspaceOpen = false
@@ -36,36 +67,72 @@ final class LauncherModel: ObservableObject {
     @Published var preview = false
     @Published var message = ""
     @Published var focusToken = UUID()
-    init(store: Store, history: History, calculator: CalculatorStore, app: AppDelegate) { self.store = store; self.history = history; self.calculator = calculator; self.app = app }
-    var results: [ResultItem] {
+    init(store: Store, history: History, calculator: CalculatorStore, app: AppDelegate) {
+        self.store = store; self.history = history; self.calculator = calculator; self.app = app
+        // @Published emits before the value changes; hop to the next turn so refresh reads the new list.
+        app.apps.$apps.dropFirst().receive(on: DispatchQueue.main).sink { [weak self] _ in self?.refresh() }.store(in: &subscriptions)
+    }
+    private func computeResults() -> [ResultItem] {
         if tab == .calculator { return [] }
+        let usage = app.usage, now = Date()
+        if tab == .apps { return app.apps.search(query, usage: usage).map(appResult) }
         let isSnip = query.lowercased().hasPrefix("snip ")
         let search = isSnip ? String(query.dropFirst(5)) : query
+        var items: [ResultItem]
         if tab == .snippets || isSnip {
-            return store.results(search, favorites: favoritesOnly).filter { collectionFilter.isEmpty || $0.collection == collectionFilter }.map { ResultItem(id: $0.id, title: $0.title, text: $0.text, subtitle: [$0.keyword ?? "", $0.collection ?? "", $0.tags].filter { !$0.isEmpty }.joined(separator: " · "), favorite: $0.favorite, snippet: $0) }
+            items = store.results(search, favorites: filter == .favorites).filter { collectionFilter.isEmpty || $0.collection == collectionFilter }.map { item in
+                let key = UsageStore.key(snippet: item.id)
+                return ResultItem(id: item.id, title: item.title, text: item.text, subtitle: [item.keyword ?? "", item.collection ?? "", item.tags].filter { !$0.isEmpty }.joined(separator: " · "), favorite: item.favorite, snippet: item, usageKey: key, frequent: usage.isFrequent(key, now: now), uses: usage.count(key))
+            }
+        } else {
+            items = history.search(search, favorites: filter == .favorites).map { clip in
+                let key = UsageStore.key(clip: clip.id)
+                return ResultItem(id: clip.id, title: clip.title, text: clip.text, subtitle: clip.source, favorite: clip.favorite, snippet: nil, clip: clip, usageKey: key, frequent: usage.isFrequent(key, now: now), uses: usage.count(key))
+            }
         }
-        return history.search(search, favorites: favoritesOnly).map { ResultItem(id: $0.id, title: $0.title, text: $0.text, subtitle: $0.source + " · " + $0.date.formatted(.relative(presentation: .named)), favorite: $0.favorite, snippet: nil, clip: $0) }
+        if filter == .frequent {
+            return items.filter(\.frequent).map { ($0, usage.score($0.usageKey, now: now)) }.sorted { $0.1 > $1.1 }.map(\.0)
+        }
+        // As in Spotlight, a query naming an app offers it after any matching text, so Return opens it when nothing else matches.
+        if filter == .all, !isSnip, !search.trimmingCharacters(in: .whitespaces).isEmpty {
+            items += app.apps.search(search, usage: usage, minimumScore: 50, limit: 3).map(appResult)
+        }
+        return items
+    }
+    private func appResult(_ entry: AppEntry) -> ResultItem {
+        ResultItem(id: entry.id, title: entry.name, text: entry.url.path, subtitle: entry.location, favorite: false, snippet: nil, app: entry, usageKey: entry.usageKey)
     }
     var listHeight: CGFloat { tab == .calculator ? 388 : results.isEmpty ? 180 : CGFloat(min(results.count, 5) * 58 + 16) }
     var current: ResultItem? { results.first { $0.id == selected } }
-    func refresh() { if !results.contains(where: { $0.id == selected }) { selected = results.first?.id } }
+    func refresh() {
+        results = computeResults()
+        if !results.contains(where: { $0.id == selected }) { selected = results.first?.id }
+    }
     func new() { editing = SnippetItem(title: "", text: "", tags: "", collection: collectionFilter.isEmpty ? nil : collectionFilter) }
     func saveSelection() {
-        guard let current else { return }
+        guard let current, current.app == nil else { return }
         editing = current.snippet ?? SnippetItem(title: current.title, text: current.text, tags: "")
     }
     func editSelection() {
-        guard let current else { return }
+        guard let current, current.app == nil else { return }
         if let snippet = current.snippet { editing = snippet }
         else { editingClip = history.clips.first { $0.id == current.id } }
     }
     func toggleFavorite(_ item: ResultItem) {
+        guard item.app == nil else { return }
         if var snippet = item.snippet { snippet.favorite.toggle(); store.save(snippet) }
         else { history.toggleFavorite(item.id) }
         refresh()
     }
-    func choose(copy: Bool = false, formatted: Bool = false, textOnly: Bool = false) {
+    /// Return pastes and Command–Return copies; for apps they open and show in Finder, as in Spotlight.
+    func choose(copy: Bool = false, formatted: Bool = false, textOnly: Bool = false, clicked: Bool = false) {
         guard let current else { return }
+        if clicked { app.clickGuard.arm() }
+        if let entry = current.app {
+            if copy { app.reveal(entry) } else { app.open(entry) }
+            return
+        }
+        app.usage.record(current.usageKey)
         if !textOnly, let clip = current.clip, let url = history.imageURL(clip) {
             do { app.pasteText(current.text, copyOnly: copy, image: try Data(contentsOf: url)) }
             catch { message = "Couldn’t read the image: " + error.localizedDescription }
@@ -79,7 +146,7 @@ final class LauncherModel: ObservableObject {
         }
     }
     func enqueue() {
-        guard let current else { return }
+        guard let current, current.app == nil else { return }
         do {
             let image = try current.clip.flatMap { history.imageURL($0) }.map { try Data(contentsOf: $0) }
             if app.workspace.update({ $0.queue.append(QueueEntry(title: current.title, text: current.text, image: image, template: current.snippet != nil)) }) { message = "Added to queue · \(app.workspace.data.queue.count) items" }
@@ -143,6 +210,7 @@ final class LauncherModel: ObservableObject {
         case .clipboard: switchTab(.history)
         case .snippets: switchTab(.snippets)
         case .calculator: switchTab(.calculator)
+        case .apps: switchTab(.apps)
         case .nextSection: cycleTab()
         case .previousSection: cycleTab(backward: true)
         case .nextResult: moveResult(backward: false, wraps: true)
@@ -185,7 +253,7 @@ struct LauncherView: View {
             searchBar
             tabs
             Divider()
-            if let error = store.error ?? history.error {
+            if let error = store.error ?? history.error ?? model.app.usage.error {
                 Text(error).foregroundStyle(.orange).padding()
             }
             if model.tab == .calculator { CalculatorView(model: model, calculator: model.calculator) }
@@ -193,7 +261,7 @@ struct LauncherView: View {
             if model.preview, let current = model.current {
                 Divider()
                 Group {
-                    if let clip = current.clip, let url = history.imageURL(clip), let image = NSImage(contentsOf: url) {
+                    if let clip = current.clip, let url = history.imageURL(clip), let image = ImageCache.image(url) {
                         HStack { Image(nsImage: image).resizable().scaledToFit(); ScrollView { Text(current.text).font(.caption).textSelection(.enabled) } }.padding(8)
                     } else { MarkdownPreview(text: current.text) }
                 }.frame(height: 130)
@@ -225,13 +293,20 @@ struct LauncherView: View {
             }
         }
     }
+    var placeholder: String {
+        switch model.tab {
+        case .calculator: return "Calculate…  e.g. (24 + 18) / 6"
+        case .apps: return "Search apps…"
+        default: return "Search copied text, apps, or type snip…"
+        }
+    }
     var searchBar: some View {
         HStack(spacing: 14) {
             LogoMark(color: theme.accent).frame(width: 27, height: 27)
             if AppEnvironment.current.isDevelopment {
                 Text("DEV").font(.system(size: 10, weight: .bold)).padding(5).background(theme.selection, in: RoundedRectangle(cornerRadius: 4)).accessibilityLabel("Development build")
             }
-            TextField(model.tab == .calculator ? "Calculate…  e.g. (24 + 18) / 6" : "Search copied text or type snip…", text: model.tab == .calculator ? $model.expression : $model.query).textFieldStyle(.plain).font(.system(size: 24)).focused($searchFocused).accessibilityLabel(model.tab == .calculator ? "Calculator expression" : "Search clipboard and snippets")
+            TextField(placeholder, text: model.tab == .calculator ? $model.expression : $model.query).textFieldStyle(.plain).font(.system(size: 24)).focused($searchFocused).accessibilityLabel(model.tab == .calculator ? "Calculator expression" : model.tab == .apps ? "Search apps" : "Search clipboard and snippets")
             if !(model.tab == .calculator ? model.expression : model.query).isEmpty { Button { if model.tab == .calculator { model.expression = "" } else { model.query = "" } } label: { Image(systemName: "xmark.circle.fill") }.buttonStyle(PointerButtonStyle()).help("Clear search") }
         }.padding(22)
     }
@@ -240,15 +315,12 @@ struct LauncherView: View {
             ForEach(LauncherTab.allCases, id: \.self) { tab in
                 Button { model.switchTab(tab) } label: {
                     Text(tab.rawValue + "  " + shortcuts.label(tab.shortcutAction)).font(.system(size: 12, weight: .medium)).padding(.horizontal, 12).padding(.vertical, 6)
-                        .background((model.query.lowercased().hasPrefix("snip ") ? tab == .snippets : model.tab == tab) ? theme.selection : .clear, in: Capsule())
+                        .background((model.tab != .apps && model.query.lowercased().hasPrefix("snip ") ? tab == .snippets : model.tab == tab) ? theme.selection : .clear, in: Capsule())
                 }.buttonStyle(PointerButtonStyle())
             }
-            if model.tab != .calculator {
-                Button { model.favoritesOnly.toggle() } label: {
-                    Image(systemName: model.favoritesOnly ? "star.fill" : "star")
-                        .foregroundStyle(model.favoritesOnly ? theme.accent : theme.secondary)
-                }.help(model.favoritesOnly ? "Show all results" : "Show favorites only")
-                    .accessibilityLabel("Favorites only").accessibilityValue(model.favoritesOnly ? "On" : "Off")
+            if model.tab == .history || model.tab == .snippets {
+                filterButton(.favorites, icon: "star", label: "Favorites only", help: "Show favorites only")
+                filterButton(.frequent, icon: "flame", label: "Frequently used", help: "Show what you’ve used most in the last few days")
             }
             Spacer()
             Menu {
@@ -260,6 +332,13 @@ struct LauncherView: View {
             Button { model.settings = true } label: { Image(systemName: "gearshape") }.help("Settings · " + shortcuts.label(.settings))
         }.buttonStyle(PointerButtonStyle()).padding(.horizontal, 20).padding(.bottom, 12)
     }
+    func filterButton(_ filter: ResultFilter, icon: String, label: String, help: String) -> some View {
+        let on = model.filter == filter
+        return Button { model.filter = on ? .all : filter } label: {
+            Image(systemName: on ? icon + ".fill" : icon).foregroundStyle(on ? theme.accent : theme.secondary)
+        }.help(on ? "Show all results" : help)
+            .accessibilityLabel(label).accessibilityValue(on ? "On" : "Off")
+    }
     var resultList: some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -270,16 +349,37 @@ struct LauncherView: View {
                 .onChange(of: model.selected) { id in if let id { proxy.scrollTo(id) } }
         }
     }
-    func row(_ item: ResultItem, index: Int) -> some View {
-        HStack(spacing: 12) {
-            if let clip = item.clip, let url = history.imageURL(clip), let image = NSImage(contentsOf: url) {
+    @ViewBuilder func row(_ item: ResultItem, index: Int) -> some View {
+        if let entry = item.app { appRow(item, entry) } else { textRow(item) }
+    }
+    func subtitle(_ item: ResultItem) -> String {
+        var parts: [String] = []
+        if model.filter == .frequent { parts.append("Used \(item.uses)×") }
+        // Formatted per visible row rather than for the whole history on each keystroke.
+        if let clip = item.clip { parts += [clip.source, clip.date.formatted(.relative(presentation: .named))] }
+        else if !item.subtitle.isEmpty { parts.append(item.subtitle) }
+        return parts.isEmpty ? String(item.text.prefix(100)) : parts.joined(separator: " · ")
+    }
+    /// A single click pastes, like pressing Return. The row's buttons keep their own actions.
+    func selectable<Content: View>(_ item: ResultItem, _ content: Content) -> some View {
+        content.padding(.horizontal, 12).frame(height: 55)
+            .background(model.selected == item.id ? theme.selection : .clear, in: RoundedRectangle(cornerRadius: 8))
+            .contentShape(Rectangle()).pointerCursor().onTapGesture { model.selected = item.id; model.choose(clicked: true) }.id(item.id)
+            .accessibilityElement(children: .contain).accessibilityAddTraits(.isButton).accessibilityValue(model.selected == item.id ? "Selected" : "")
+    }
+    func textRow(_ item: ResultItem) -> some View {
+        selectable(item, HStack(spacing: 12) {
+            if let clip = item.clip, let url = history.imageURL(clip), let image = ImageCache.thumbnail(url) {
                 Image(nsImage: image).resizable().scaledToFit().frame(width: 32, height: 40)
             } else { Image(systemName: item.snippet == nil ? "doc.on.clipboard" : "text.badge.star").foregroundStyle(accent).frame(width: 32) }
             VStack(alignment: .leading, spacing: 5) {
                 Text(item.title).font(.system(size: 14, weight: .medium)).lineLimit(1)
-                Text(item.subtitle.isEmpty ? String(item.text.prefix(100)) : item.subtitle).font(.system(size: 11)).foregroundStyle(theme.secondary).lineLimit(1)
+                Text(subtitle(item)).font(.system(size: 11)).foregroundStyle(theme.secondary).lineLimit(1)
             }
             Spacer()
+            if item.frequent && model.filter != .frequent {
+                Image(systemName: "flame").font(.system(size: 11)).foregroundStyle(theme.secondary).help("Used \(item.uses)× recently").accessibilityLabel("Frequently used")
+            }
             Button { model.toggleFavorite(item) } label: {
                 Image(systemName: item.favorite ? "star.fill" : "star").foregroundStyle(item.favorite ? accent : theme.secondary)
             }.buttonStyle(PointerButtonStyle()).help(item.favorite ? "Remove favorite" : "Favorite · keep indefinitely")
@@ -287,11 +387,7 @@ struct LauncherView: View {
             Button { model.selected = item.id; model.editSelection() } label: { Image(systemName: "pencil") }
                 .buttonStyle(PointerButtonStyle()).help("Edit · " + shortcuts.label(.editSnippet)).accessibilityLabel("Edit " + item.title)
             if model.selected == item.id { Image(systemName: "return").foregroundStyle(accent).font(.system(size: 12)) }
-        }.padding(.horizontal, 12).frame(height: 55)
-            .background(model.selected == item.id ? theme.selection : .clear, in: RoundedRectangle(cornerRadius: 8))
-            .contentShape(Rectangle()).pointerCursor().onTapGesture(count: 2) { model.selected = item.id; model.choose() }
-            .onTapGesture { model.selected = item.id }.id(item.id)
-            .accessibilityElement(children: .contain).accessibilityAddTraits(.isButton).accessibilityValue(model.selected == item.id ? "Selected" : "")
+        })
             .contextMenu {
                 Button("Paste") { model.selected = item.id; model.choose() }
                 Button("Copy") { model.selected = item.id; model.choose(copy: true) }
@@ -305,24 +401,65 @@ struct LauncherView: View {
                 if item.snippet == nil { Button("Remove from history") { history.remove(item.id) } }
             }
     }
+    func appRow(_ item: ResultItem, _ entry: AppEntry) -> some View {
+        selectable(item, HStack(spacing: 12) {
+            Image(nsImage: model.app.apps.icon(entry)).resizable().scaledToFit().frame(width: 32, height: 32)
+            VStack(alignment: .leading, spacing: 5) {
+                Text(item.title).font(.system(size: 14, weight: .medium)).lineLimit(1)
+                Text(model.tab == .apps ? item.subtitle : "Application · " + item.subtitle).font(.system(size: 11)).foregroundStyle(theme.secondary).lineLimit(1)
+            }
+            Spacer()
+            if model.selected == item.id { Text("Open").font(.system(size: 11)).foregroundStyle(theme.secondary); Image(systemName: "return").foregroundStyle(accent).font(.system(size: 12)) }
+        })
+            .contextMenu {
+                Button("Open") { model.selected = item.id; model.choose() }
+                Button("Show in Finder") { model.selected = item.id; model.choose(copy: true) }
+                Button("Copy path") { model.app.copyText(entry.url.path); model.message = "Path copied" }
+            }
+    }
+    var emptyTitle: String {
+        if model.tab == .apps { return model.query.isEmpty ? "Looking for apps…" : "No matching apps" }
+        switch model.filter {
+        case .favorites: return "No matching favorites"
+        case .frequent: return model.query.isEmpty ? "Nothing used often yet" : "No matching frequent items"
+        case .all: return model.query.isEmpty ? (model.tab == .history ? "Copy now. Find it later." : "Your words, ready to paste.") : "No matching text"
+        }
+    }
+    var emptyDetail: String {
+        if model.tab == .apps { return "Apps in Applications, System Applications and ~/Applications appear here." }
+        switch model.filter {
+        case .favorites: return "Star a clip or snippet to find it here."
+        case .frequent: return "Clips and snippets you paste a few times appear here, then fade once you stop using them."
+        case .all: return model.tab == .history ? (historyEnabled ? "Copy text in any app. It will appear here." : "Enable clipboard history to remember the text you copy.") : "Create a snippet, then find it by name or keyword."
+        }
+    }
     var emptyState: some View {
         VStack(spacing: 12) {
-            Image(systemName: model.tab == .history ? "doc.on.clipboard" : "text.badge.plus").font(.system(size: 30, weight: .light)).foregroundStyle(accent)
-            Text(model.favoritesOnly ? "No matching favorites" : model.query.isEmpty ? (model.tab == .history ? "Copy now. Find it later." : "Your words, ready to paste.") : "No matching text").font(.system(size: 18, weight: .medium))
-            Text(model.favoritesOnly ? "Star a clip or snippet to find it here." : model.tab == .history ? (historyEnabled ? "Copy text in any app. It will appear here." : "Enable clipboard history to remember the text you copy.") : "Create a snippet, then find it by name or keyword.").font(.system(size: 12)).foregroundStyle(theme.secondary)
-            if model.tab == .history && !historyEnabled { Button("Enable clipboard history") { historyEnabled = true }.buttonStyle(.borderedProminent).pointerCursor().tint(accent) }
-            if model.tab == .snippets { Button("New snippet") { model.new() } }
+            Image(systemName: model.tab == .apps ? "app.dashed" : model.filter == .frequent ? "flame" : model.tab == .history ? "doc.on.clipboard" : "text.badge.plus").font(.system(size: 30, weight: .light)).foregroundStyle(accent)
+            Text(emptyTitle).font(.system(size: 18, weight: .medium))
+            Text(emptyDetail).font(.system(size: 12)).foregroundStyle(theme.secondary).multilineTextAlignment(.center)
+            if model.tab == .history && model.filter == .all && !historyEnabled { Button("Enable clipboard history") { historyEnabled = true }.buttonStyle(.borderedProminent).pointerCursor().tint(accent) }
+            if model.tab == .snippets && model.filter == .all { Button("New snippet") { model.new() } }
         }.frame(maxWidth: .infinity).frame(height: model.listHeight)
+    }
+    var hints: String {
+        switch model.tab {
+        case .calculator: return "\(shortcuts.label(.calculate)) Calculate    \(shortcuts.label(.copyCalculation)) Copy result"
+        case .apps: return "\(shortcuts.label(.nextResult)) Next app    \(shortcuts.label(.pasteResult)) Open    \(shortcuts.label(.copyResult)) Show in Finder"
+        default: return "\(shortcuts.label(.nextResult)) Next result    \(shortcuts.label(.pasteResult)) Paste    \(shortcuts.label(.saveSnippet)) Save"
+        }
     }
     var footer: some View {
         HStack(spacing: 12) {
             if model.message.isEmpty {
-                Text(model.tab == .calculator ? "\(shortcuts.label(.calculate)) Calculate    \(shortcuts.label(.copyCalculation)) Copy result" : "\(shortcuts.label(.nextResult)) Next result    \(shortcuts.label(.pasteResult)) Paste    \(shortcuts.label(.saveSnippet)) Save").foregroundStyle(theme.secondary)
+                Text(hints).foregroundStyle(theme.secondary)
             } else { Text(model.message).foregroundStyle(accent).lineLimit(2) }
             Spacer(minLength: 0)
-            if model.tab != .calculator { Button { model.openWorkspace(1) } label: { Image(systemName: "text.badge.plus") }.help("Paste queue") }
-            if model.tab != .calculator { Button { model.preview.toggle() } label: { Image(systemName: "eye") }.help("Preview · " + shortcuts.label(.preview)) }
-            if model.tab != .calculator { Button("Copy") { model.choose(copy: true) }.disabled(model.current == nil) }
+            if model.tab == .history || model.tab == .snippets {
+                Button { model.openWorkspace(1) } label: { Image(systemName: "text.badge.plus") }.help("Paste queue")
+                Button { model.preview.toggle() } label: { Image(systemName: "eye") }.help("Preview · " + shortcuts.label(.preview))
+            }
+            if model.tab != .calculator { Button(model.current?.app == nil ? "Copy" : "Show in Finder") { model.choose(copy: true) }.disabled(model.current == nil) }
         }.buttonStyle(PointerButtonStyle()).font(.system(size: 10)).padding(.horizontal, 20).frame(height: 38)
     }
 }
@@ -364,7 +501,7 @@ struct SettingsView: View {
             Text(expansion.status).font(.caption).foregroundStyle(theme.secondary).fixedSize(horizontal: false, vertical: true)
             Button { app.accessibility() } label: { Label("Enable Accessibility…", systemImage: "arrow.up.right.square").foregroundStyle(theme.accent).underline() }.buttonStyle(PointerButtonStyle()).help("Open macOS Accessibility settings")
             Divider()
-            Text("\(shortcuts.label(.toggle)) opens Snippet. \(shortcuts.label(.clipboard)) Clipboard · \(shortcuts.label(.snippets)) Snippets · \(shortcuts.label(.calculator)) Calculator. \(shortcuts.label(.nextResult)) / \(shortcuts.label(.previousResult)) moves through results. Customize every command in Shortcuts.").font(.caption).foregroundStyle(theme.secondary).fixedSize(horizontal: false, vertical: true)
+            Text("\(shortcuts.label(.toggle)) opens Snippet. \(shortcuts.label(.clipboard)) Clipboard · \(shortcuts.label(.snippets)) Snippets · \(shortcuts.label(.calculator)) Calculator · \(shortcuts.label(.apps)) Apps. \(shortcuts.label(.nextResult)) / \(shortcuts.label(.previousResult)) moves through results. Customize every command in Shortcuts.").font(.caption).foregroundStyle(theme.secondary).fixedSize(horizontal: false, vertical: true)
         }
     }
 }

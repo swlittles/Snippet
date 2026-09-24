@@ -11,7 +11,9 @@ Snippet is a Swift Package executable targeting macOS 13+. AppKit owns app lifec
 | `LauncherView.swift` | Search/selection state, results, favorite and edit actions, clip/snippet editors, general settings |
 | `Store.swift` | Snippet model, search, atomic persistence |
 | `History.swift` | Clip model, legacy decoding, favorites, deduplication, retention, editing, keyword matcher |
-| `Services.swift` | Clipboard polling, sensitive-type exclusions, Accessibility-gated keyword event tap |
+| `Services.swift` | Clipboard polling and text-vs-image choice, sensitive-type exclusions, Command–V posting, double-click guard, Accessibility-gated keyword event tap |
+| `Usage.swift` | Decaying use scores for the Frequent filter and app ranking |
+| `Apps.swift` | Background scan of app folders, name matching and ranking, icons |
 | `Shortcuts.swift` | Bindings, contextual conflict validation, persistence, recording, settings UI |
 | `Navigation.swift` | Section cycling and result navigation |
 | `Calculator.swift` | Tokenizer/parser, numeric evaluation, calculation persistence |
@@ -20,18 +22,20 @@ Snippet is a Swift Package executable targeting macOS 13+. AppKit owns app lifec
 
 ## Copy → history → paste
 
-1. ClipboardService polls the pasteboard change count every 0.4 seconds.
-2. When enabled, it rejects marked concealed/transient/generated content and known password apps, then reads text or image representations. Images are normalized to PNG; Vision OCR runs off the main thread.
+1. ClipboardService polls the pasteboard change count every 0.25 seconds in common run-loop modes. While capture is enabled it holds a user-initiated activity so App Nap can't stretch the interval and let one copy overwrite another unseen.
+2. When enabled, it rejects marked concealed/transient/generated content and known password apps, then reads text or image representations. An image wins only if its type precedes every text type or there's no text, because Office/iWork add a picture of copied text. Rich-text-only copies are read as plain text. Images are normalized to PNG; Vision OCR runs off the main thread.
 3. History records non-empty text up to 100,000 UTF-8 bytes. Re-copies retain the chosen entry's ID and favorite status.
 4. Retention is unlimited by default. User-selected age/count rules apply to ordinary clips; favorites are always kept. Pruning occurs at startup, when opening the launcher, and periodically.
 5. Search filters results by query words and the optional favorites-only mode. Favorites sort first.
-6. Paste writes the selected text to the system clipboard with an auto-generated marker. The app checks Accessibility trust, activates the saved destination, and posts Command–V after it becomes frontmost.
+6. Paste writes the selected text to the system clipboard with an auto-generated marker. The app checks Accessibility trust, yields activation to the saved destination (the last other app activated, tracked by notification), waits until it's frontmost plus 80 ms for its window to regain focus, and posts Command–V. After 0.35 seconds it hides itself so macOS returns focus, and it gives up after 1.5 seconds. A click-triggered paste arms a short event tap that swallows the rest of a double-click so it can't select text in the destination.
+
+Launcher results are computed once per input change and cached. Re-copying existing text and every launcher paste/copy is recorded in `usage.json`. Each use counts 0.5^(age / 3 days). A score of at least 1.5 marks an item frequent.
 
 If permission or activation fails, the text remains copied and the UI explains the problem. The app doesn't read the destination's document.
 
 ## Data and errors
 
-`~/Library/Application Support/Snippet/` stores `snippets.json`, `history.json`, `calculations.json`, `workspace.json`, `sync-journal.json`, and the `Images/` attachment directory. Writes are atomic and files use mode 0600. A read or save error blocks subsequent writes through that store and is surfaced in the UI; unreadable originals are preserved. Settings, shortcuts, and themes use UserDefaults.
+`~/Library/Application Support/Snippet/` stores `snippets.json`, `history.json`, `calculations.json`, `usage.json`, `workspace.json`, `sync-journal.json`, and the `Images/` attachment directory. Writes are atomic and files use mode 0600. A read or save error blocks subsequent writes through that store and is surfaced in the UI; unreadable originals are preserved. Settings, shortcuts, and themes use UserDefaults.
 
 Clip decoding treats a missing `favorite` field as false for older history files. Clip edits retain identity/source/date; they validate non-empty content and the capture size limit. Editor drafts are value types and aren't persisted on Cancel. Unfavoriting doesn't reset a clip's age, so normal pruning can subsequently remove it.
 
@@ -51,7 +55,7 @@ Production retains `local.snippet.app` to preserve preferences and avoid an unne
 
 ## Verification
 
-`bash scripts/test.sh` uses a standalone Swift test executable and isolated temporary storage. It covers persistence, search, migration, corrupt-file preservation, clipboard filtering, favorite age/capacity exemptions, re-copying, clip edits, calculation parsing/history, themes, shortcut validation/persistence, and navigation. CI builds both architectures. Hardware testing on macOS 13 and Intel is still needed for a complete compatibility matrix; cross-compilation is not a runtime test.
+`bash scripts/test.sh` uses a standalone Swift test executable and isolated temporary storage. It covers persistence, search, migration, corrupt-file preservation, clipboard filtering, favorite age/capacity exemptions, re-copying, clip edits, text-over-rendering capture, rich-text capture, re-copy usage, frecency decay and pruning, app scanning (including hidden-flag symlinks like Safari) and ranking, calculation parsing/history, themes, shortcut validation/persistence, and navigation. CI builds both architectures. Hardware testing on macOS 13 and Intel is still needed for a complete compatibility matrix; cross-compilation is not a runtime test.
 
 ## Workspace implementation
 

@@ -43,9 +43,9 @@ A ZIP and SHA-256 checksums accompany each release. See [installation, updates, 
 | Default shortcut | Action |
 | --- | --- |
 | Option–Space | Open or close Snippet |
-| Cmd–1 / Cmd–2 / Cmd–3 | Clipboard / Snippets / Calculator |
+| Cmd–1 / Cmd–2 / Cmd–3 / Cmd–4 | Clipboard / Snippets / Calculator / Apps |
 | Tab / Shift–Tab | Next / previous result, wrapping |
-| Return | Paste the selected result |
+| Return or click | Paste the selected result, or open the selected app |
 | Cmd–Return | Copy the selected result |
 | Cmd–N | Create a snippet |
 | Cmd–S | Save a clip as a snippet; save changes inside an editor |
@@ -57,7 +57,7 @@ A ZIP and SHA-256 checksums accompany each release. See [installation, updates, 
 | Cmd–Shift–V | Paste the next queue item from the launcher |
 | Cmd–comma | Settings |
 
-Click a row’s **star** to favorite it or its **pencil** to edit. The star beside the section tabs filters to favorites. Favorites sort first and survive retention cleanup. Every keyboard command can be changed in **Settings → Shortcuts**.
+Click a row’s **star** to favorite it or its **pencil** to edit. The star beside the section tabs filters to favorites, and the flame to things you've used several times in the last few days. Favorites sort first and survive retention cleanup; frequent items fade on their own. Every keyboard command can be changed in **Settings → Shortcuts**.
 
 The calculator supports parentheses, scientific functions, powers, factorials, percentages, RAD/DEG modes, and `ans`. Appearance settings include five themes and custom native color pickers.
 
