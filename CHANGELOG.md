@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.6.0
+
+- Add an optional **Vault** section (Command–5) that searches a Bitwarden vault on Bitwarden.com, Bitwarden.eu, a self-hosted Bitwarden server or Vaultwarden, and pastes passwords, usernames, notes, card details and verification codes. Items are read-only for now.
+- Sign in with a master password plus authenticator, email or YubiKey codes, new-device verification, or a personal API key. The master password is never stored or sent.
+- Decrypt on this Mac with PBKDF2 or Argon2id accounts, organization items and per-item keys. The encrypted vault is cached for offline unlocking; tokens are kept in the Keychain.
+- Lock automatically after inactivity and on sleep, screen lock or user switch. Honor master-password re-prompt on items.
+- Mark copied vault values confidential so clipboard history skips them, and clear them from the clipboard after a configurable delay.
+
 ## 3.5.0
 
 - Make the menu-bar icon toggle its menu on mouse-down without reopening on mouse-up.

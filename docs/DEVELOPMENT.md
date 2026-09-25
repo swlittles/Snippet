@@ -33,6 +33,8 @@ The production-identity command is for packaging checks; it shares the released 
 
 Grant Accessibility to **Snippet Dev** separately if you want to test direct paste/expansion. Development is ad-hoc signed by default, so rebuilding may require refreshing its entry. This does not change production's identity or its permission entry. History capture and keyword expansion start off in the new development profile.
 
+Vault sign-in tokens are stored in the Keychain under `local.snippet.dev.vault`. Keychain access is tied to the app's code signature, so after an ad-hoc rebuild macOS may ask whether Snippet Dev can use them; the launcher hides while that prompt has focus. Signed releases keep one identity across updates and don't ask. To test against a server without touching a real vault, run a local Vaultwarden and sign in with a throwaway account; plain HTTP is accepted only for `localhost`.
+
 ## Existing local builds
 
 Older local `dist/Snippet.app` builds used the production identity. They and the released production app share `~/Library/Application Support/Snippet/`. That library remains the production library. The new default build writes `dist/Snippet Dev.app` and leaves the old bundle/data untouched. Use Snippet Dev for future development; use the released app in Applications for production.

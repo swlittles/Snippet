@@ -19,6 +19,10 @@ Snippet is a Swift Package executable targeting macOS 13+. AppKit owns app lifec
 | `Calculator.swift` | Tokenizer/parser, numeric evaluation, calculation persistence |
 | `CalculatorView.swift` | Calculator keypad and history UI |
 | `Theme.swift` | Theme presets, custom colors, native color panels, shared cursor styles and logo mark |
+| `VaultCrypto.swift` | Bitwarden EncStrings, PBKDF2/Argon2id/HKDF key derivation, AES-CBC + HMAC, RSA-OAEP, TOTP, BLAKE2b |
+| `VaultAPI.swift` | Server endpoints, prelogin, token grants, two-step errors, sync request |
+| `Vault.swift` | Sync decoding and item decryption, encrypted cache, Keychain secrets, lock state, search |
+| `VaultView.swift` | Vault settings and sign-in, item details, master-password re-prompt |
 
 ## Copy → history → paste
 
@@ -35,7 +39,7 @@ If permission or activation fails, the text remains copied and the UI explains t
 
 ## Data and errors
 
-`~/Library/Application Support/Snippet/` stores `snippets.json`, `history.json`, `calculations.json`, `usage.json`, `workspace.json`, `sync-journal.json`, and the `Images/` attachment directory. Writes are atomic and files use mode 0600. A read or save error blocks subsequent writes through that store and is surfaced in the UI; unreadable originals are preserved. Settings, shortcuts, and themes use UserDefaults.
+`~/Library/Application Support/Snippet/` stores `snippets.json`, `history.json`, `calculations.json`, `usage.json`, `workspace.json`, `sync-journal.json`, the optional encrypted `vault-cache.json`, and the `Images/` attachment directory. Writes are atomic and files use mode 0600. A read or save error blocks subsequent writes through that store and is surfaced in the UI; unreadable originals are preserved. Settings, shortcuts, and themes use UserDefaults.
 
 Clip decoding treats a missing `favorite` field as false for older history files. Clip edits retain identity/source/date; they validate non-empty content and the capture size limit. Editor drafts are value types and aren't persisted on Cancel. Unfavoriting doesn't reset a clip's age, so normal pruning can subsequently remove it.
 
@@ -56,6 +60,14 @@ Production retains `local.snippet.app` to preserve preferences and avoid an unne
 ## Verification
 
 `bash scripts/test.sh` uses a standalone Swift test executable and isolated temporary storage. It covers persistence, search, migration, corrupt-file preservation, clipboard filtering, favorite age/capacity exemptions, re-copying, clip edits, text-over-rendering capture, rich-text capture, re-copy usage, frecency decay and pruning, app scanning (including hidden-flag symlinks like Safari) and ranking, calculation parsing/history, themes, shortcut validation/persistence, and navigation. CI builds both architectures. Hardware testing on macOS 13 and Intel is still needed for a complete compatibility matrix; cross-compilation is not a runtime test.
+
+## Vault
+
+`VaultStore` implements the Bitwarden client protocol directly, with no SDK. Sign-in fetches the account's KDF settings from `identity/accounts/prelogin`, derives the master key (PBKDF2-SHA256 with the email as salt, or Argon2id with the email's SHA-256), and sends only `PBKDF2(masterKey, password, 1)` to `identity/connect/token`. Two-step and new-device responses pause sign-in with the derived key held in memory until a code is entered. The HKDF-stretched master key opens the account's user key; the user key opens the RSA private key, which unwraps organization keys; items with their own key are opened with it. Unknown item types are skipped, and items that fail authentication are counted and hidden.
+
+The raw `api/sync` response is saved as `vault-cache.json` alongside the KDF settings, so unlocking is offline and never needs the network. Refresh and API-key secrets are in the Keychain. Refreshes compare the server's protected user key and KDF settings with the cache; a change locks the vault rather than mixing keys. Decrypted `VaultItem`s live only in `VaultStore.items` and are cleared on lock, timeout, sleep, screen lock and user switch. Launcher results for vault items carry no text, so previews, Workspace tools and the paste queue never receive secrets. Paste and copy mark the pasteboard concealed and clear it after a delay if it's unchanged.
+
+JSON keys are decoded case-insensitively for the first letter, because Vaultwarden has returned PascalCase where Bitwarden returns camelCase. Tests cover RFC vectors for BLAKE2b, Argon2id, PBKDF2 and TOTP, EncString parsing and tampering, and a full sign-in, two-step, sync, decrypt, relaunch, offline unlock, refresh, key change and sign-out cycle against an in-process fake server.
 
 ## Workspace implementation
 

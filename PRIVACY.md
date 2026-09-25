@@ -1,6 +1,6 @@
 # Privacy
 
-Snippet stores your library locally. It has no accounts, analytics, advertising, or telemetry. Optional folder-based sync shares library data only after you select a folder; clipboard sharing is a separate opt-in. Quicklinks open chosen destinations in your browser or Finder. The Sparkle updater contacts GitHub over HTTPS when you check for updates or enable optional daily checks. GitHub and its download hosts receive ordinary connection information such as your IP address and HTTP client metadata. Clipboard contents, snippets, calculations, and shortcuts are never included in update requests. Sparkle system profiling is disabled. Development builds do not start the updater.
+Snippet stores your library locally. It has no accounts, analytics, advertising, or telemetry. Optional folder-based sync shares library data only after you select a folder; clipboard sharing is a separate opt-in. Quicklinks open chosen destinations in your browser or Finder. The Sparkle updater contacts GitHub over HTTPS when you check for updates or enable optional daily checks. GitHub and its download hosts receive ordinary connection information such as your IP address and HTTP client metadata. Clipboard contents, snippets, calculations, and shortcuts are never included in update requests. Sparkle system profiling is disabled. Development builds do not start the updater. The optional Vault connects only to the Bitwarden or Vaultwarden server you choose; see below.
 
 ## Stored information
 
@@ -36,6 +36,12 @@ Apple Vision recognizes image text locally. Text/developer transformations and M
 Optional sync writes readable `Snippet.sync.json` into the folder you choose. The folder's service (for example iCloud Drive) transports it. Snippet adds no encryption. Snippets, collections, quicklinks and themes are included. Enabling clipboard sharing also includes clipboard text/images and metadata. Local `sync-journal.json` tracks revisions and deletion tombstones. Deletions sync; tombstones contain no deleted payload. Existing backups or offline copies have their own retention behavior.
 
 Turning off clipboard sharing or disconnecting does not erase already shared copies. Disconnect every participating Mac before removing the shared folder if you want to erase the shared library. See [the sync guide](docs/WORKSPACE.md#optional-icloud-drive-sync) for merge behavior and deletion details.
+
+## Optional vault
+
+Vault is off until you turn it on and sign in. Snippet then connects to the server you chose (Bitwarden’s US or EU cloud, or your self-hosted address) and to no other service. It sends your email, a hash derived from your master password, two-step codes you enter, a random device identifier created on this Mac, and the device name “Snippet”. It receives your encrypted vault. Your master password itself is never sent or saved.
+
+The server address, email and vault preferences are stored in Snippet’s settings. `vault-cache.json` in the data folder holds the encrypted vault and your KDF settings, with owner-only permissions. Sign-in tokens are stored in the macOS Keychain. Decrypted items stay in memory only while the vault is unlocked. Copied vault values are marked confidential, so clipboard history skips them, and the clipboard is cleared after the delay you choose. **Sign out** deletes the cache and tokens. See the [Vault guide](docs/VAULT.md).
 
 ## Reports
 

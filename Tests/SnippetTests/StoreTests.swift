@@ -2,14 +2,14 @@ import Foundation
 import AppKit
 import SwiftUI
 
-func XCTAssertTrue(_ value: Bool) { precondition(value) }
-func XCTAssertFalse(_ value: Bool) { precondition(!value) }
-func XCTAssertNotNil<T>(_ value: T?) { precondition(value != nil) }
-func XCTAssertEqual<T: Equatable>(_ lhs: T, _ rhs: T) { precondition(lhs == rhs) }
+func XCTAssertTrue(_ value: Bool, file: StaticString = #file, line: UInt = #line) { precondition(value, file: file, line: line) }
+func XCTAssertFalse(_ value: Bool, file: StaticString = #file, line: UInt = #line) { precondition(!value, file: file, line: line) }
+func XCTAssertNotNil<T>(_ value: T?, file: StaticString = #file, line: UInt = #line) { precondition(value != nil, file: file, line: line) }
+func XCTAssertEqual<T: Equatable>(_ lhs: T, _ rhs: T, file: StaticString = #file, line: UInt = #line) { precondition(lhs == rhs, "\(lhs) != \(rhs)", file: file, line: line) }
 
 @main
 final class StoreTests {
-    static func main() throws {
+    static func main() async throws {
         let tests = StoreTests()
         try tests.setUpWithError()
         defer { try? tests.tearDownWithError() }
@@ -36,7 +36,9 @@ final class StoreTests {
         tests.testMenuTrackingSessions()
         tests.testUsageFrecency()
         try tests.testAppSearch()
-        print("Passed 23 test groups: persistence, search, corruption, migration, history, expansion, capture, calculator, calculation history, themes/navigation, configurable shortcuts, result cycling, usage, app search")
+        try tests.testVaultCrypto()
+        try await tests.testVaultSession()
+        print("Passed 25 test groups: persistence, search, corruption, migration, history, expansion, capture, calculator, calculation history, themes/navigation, configurable shortcuts, result cycling, usage, app search, vault crypto, vault session")
     }
     func testPowerTools() throws {
         XCTAssertEqual(SnippetTemplate.fields("Hi {{name}} {{date}} {{name}} {{project}} {{date:MMMM}} {{cursor}}"), ["name", "project"])
@@ -473,9 +475,16 @@ final class StoreTests {
         XCTAssertEqual(LauncherTab.command("2"), .snippets)
         XCTAssertEqual(LauncherTab.command("3"), .calculator)
         XCTAssertEqual(LauncherTab.command("4"), .apps)
+        XCTAssertEqual(LauncherTab.command("5"), .vault)
         XCTAssertEqual(LauncherTab.command("9"), nil)
-        XCTAssertEqual(LauncherTab.history.cycled(backward: true), .apps)
-        XCTAssertEqual(LauncherTab.apps.cycled(), .history)
+        let standard = LauncherTab.visible(vault: false), withVault = LauncherTab.visible(vault: true)
+        XCTAssertFalse(standard.contains(.vault))
+        XCTAssertEqual(LauncherTab.history.cycled(backward: true, in: standard), .apps)
+        XCTAssertEqual(LauncherTab.apps.cycled(in: standard), .history)
+        XCTAssertEqual(LauncherTab.apps.cycled(in: withVault), .vault)
+        XCTAssertEqual(LauncherTab.vault.cycled(in: withVault), .history)
+        // Turning Vault off while it's showing returns to the first section.
+        XCTAssertEqual(LauncherTab.vault.cycled(in: standard), .history)
     }
     func testShortcuts() {
         let name = "SnippetShortcutsTest-" + UUID().uuidString
@@ -511,6 +520,14 @@ final class StoreTests {
         shortcuts.recording = .snippets
         XCTAssertTrue(shortcuts.capture(event(53)))
         XCTAssertEqual(shortcuts.recording, nil)
+        // Saved before Vault existed, with Command–5 already assigned: the new command must not take it.
+        var saved = Dictionary(uniqueKeysWithValues: ShortcutAction.allCases.filter { ![.vault, .lockVault, .copyUsername, .copyCode].contains($0) }.map { ($0.rawValue, $0.standard) })
+        saved[ShortcutAction.preview.rawValue] = ShortcutAction.vault.standard
+        defaults.set(try! JSONEncoder().encode(saved), forKey: "shortcuts.v1")
+        let upgraded = ShortcutStore(defaults: defaults)
+        XCTAssertFalse(upgraded[.vault].enabled)
+        XCTAssertEqual(upgraded[.lockVault], ShortcutAction.lockVault.standard)
+        XCTAssertEqual(upgraded.match(event(23, .command), in: .launcher), .preview)
     }
     func testFocusedLauncherToggle() {
         let name = "SnippetToggleTest-" + UUID().uuidString

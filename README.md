@@ -5,7 +5,7 @@
 
 Snippet is a native Mac menu-bar app for finding copied text, reusing saved snippets, and doing quick calculations without leaving your keyboard. Press **Option–Space**, search, then **Return** to paste into the app you were using.
 
-No account or analytics. Your library is local by default, with optional folder-based iCloud Drive sync.
+No account or analytics. Your library is local by default, with optional folder-based iCloud Drive sync. An optional Vault section searches your Bitwarden or Vaultwarden vault and connects only to the server you choose.
 
 ## Why it exists
 
@@ -19,6 +19,7 @@ You copy a link, copy something else, and lose the link. You type the same reply
 | A copied clip needs a correction before reuse | Edit clips and snippets directly with Cmd–E |
 | Switching tools interrupts your flow | Open a hotkey panel, paste, and return to your previous app |
 | You need a calculation you made earlier | Use the calculator and its persistent history |
+| Logging in means switching to your password manager | Search your Bitwarden or Vaultwarden vault and paste passwords and verification codes |
 
 Inspired by Alfred’s keyboard-first workflow; an independent project, not affiliated with Alfred. Snippet brings clipboard history, reusable templates, Markdown, calculations, quicklinks, and local developer tools into one native panel.
 
@@ -61,11 +62,13 @@ Click a row’s **star** to favorite it or its **pencil** to edit. The star besi
 
 The calculator supports parentheses, scientific functions, powers, factorials, percentages, RAD/DEG modes, and `ans`. Appearance settings include five themes and custom native color pickers.
 
+New in 3.6: an optional **Vault** section (Command–5) for Bitwarden and Vaultwarden. See the [Vault guide](docs/VAULT.md).
+
 New in 3.4: **smart snippet fields, Markdown previews and rich paste, image OCR, paste queues, collections, quicklinks, import/export, optional iCloud Drive folder sync, and local developer tools**. The calculator also handles `15% of 80`, `10 km to mi`, `72 f to c`, and `today + 7 days`.
 
 See the [Workspace and Markdown guide](docs/WORKSPACE.md) for examples, supported formats and sync behavior.
 
-Read the [full user guide](docs/USER_GUIDE.md) for keyword expansion, calculator syntax, and settings.
+Read the [full user guide](docs/USER_GUIDE.md) for keyword expansion, calculator syntax, and settings, and the [Vault guide](docs/VAULT.md) to connect Bitwarden or Vaultwarden.
 
 ## Your data
 
@@ -74,7 +77,8 @@ Read the [full user guide](docs/USER_GUIDE.md) for keyword expansion, calculator
 - Clearing clipboard history keeps favorites and snippets. Individual removal deletes the selected clip.
 - Snippets remain until you delete them; the calculator remembers its history until you clear it.
 - Data is stored as local JSON with owner-only file permissions. It is not encrypted by Snippet.
-- Known password apps and concealed/transient clipboard types are filtered, but this cannot detect every sensitive value. Snippet is not a password manager.
+- Known password apps and concealed/transient clipboard types are filtered, but this cannot detect every sensitive value. Snippet doesn't store passwords itself.
+- The optional Vault is off by default. It decrypts your Bitwarden vault on this Mac, keeps decrypted items in memory only while unlocked, and never saves or sends your master password. See the [Vault guide](docs/VAULT.md).
 
 Read [Privacy](PRIVACY.md) for storage locations, permissions, and deletion behavior.
 

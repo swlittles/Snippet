@@ -1,16 +1,14 @@
 A native macOS clipboard, snippet, and calculator launcher. Requires macOS 13 or newer; one universal app supports Apple Silicon and Intel.
 
-### What’s new in 3.5.0
+### What’s new in 3.6.0
 
-- **Click to paste.** A single click on a result pastes it, like Return. The second click of a double-click is absorbed so it can't land in your document.
-- **More reliable direct paste.** Snippet waits for the destination window to be ready before sending Command–V, and returns focus more dependably on recent macOS versions.
-- **Fewer missed copies.** Text copied from Office, Pages and Numbers is recorded as text rather than as a picture. Rich-text-only copies are captured, and quick successive copies are no longer lost while Snippet is in the background.
-- **Frequently used.** The new flame filter shows clips and snippets you've used several times in the last few days. They fade on their own when you stop using them, so there's nothing to unfavorite.
-- **Apps.** Press Command–4 to search and open installed apps by name, word starts or initials. Matching apps also appear after text results, so Return opens an app when nothing else matches.
-- A smoother launcher with large histories and screenshots.
-- The menu-bar icon toggles its menu cleanly and dismisses it on outside clicks.
+- **Vault.** Search your Bitwarden vault from the launcher with Command–5 and paste passwords, usernames, notes, card details and verification codes. It works with Bitwarden.com, Bitwarden.eu, self-hosted Bitwarden and Vaultwarden. Turn it on in Settings → Vault.
+- **Two-step login.** Sign in with authenticator, email or YubiKey codes and remember this Mac, or use a personal API key if your account uses Duo or a security key.
+- **Private by design.** Your master password is never saved or sent. The vault is decrypted on this Mac, and decrypted items stay in memory only while it's unlocked. It locks after inactivity and when your Mac sleeps or its screen locks.
+- **Safer clipboard.** Copied vault values are marked confidential, so clipboard history skips them, and they're cleared after 30 seconds by default.
+- Command–Shift–C copies a username, Command–Shift–T copies a verification code and Command–L locks the vault. Items that require your master password again ask for it before secrets are used.
 
-Use counts for the Frequent filter are stored locally in `usage.json` and are never synced.
+Vault items are read-only in this release. Vault is off by default, and Snippet connects only to the server you choose. See the Vault guide in the repository for details.
 
 From 3.3.0 or later, choose **Check for Updates…** to install this release. Versions 3.2.x require one manual upgrade to gain the updater.
 

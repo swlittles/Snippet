@@ -28,7 +28,7 @@ See [development versus production](docs/DEVELOPMENT.md) for build variants and 
 
 ## Scope
 
-Keep contributions native, local-first, and focused on text reuse and calculations. Discuss dependencies, networking, data-format changes, and new permission requirements before implementation. Never include credentials, personal clipboard text, or private signing material in a commit or issue.
+Keep contributions native, local-first, and focused on text reuse and calculations. Discuss dependencies, networking, data-format changes, and new permission requirements before implementation. Never include credentials, personal clipboard text, or private signing material in a commit or issue. Vault tests run against an in-process fake server with synthetic data; never commit a real server address, account email, token or vault contents.
 
 ## Releases
 

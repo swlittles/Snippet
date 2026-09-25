@@ -4,8 +4,9 @@ import Carbon
 
 enum ShortcutContext { case launcher, calculator, editor, settings }
 enum ShortcutAction: String, CaseIterable, Identifiable, Codable {
-    case toggle, clipboard, snippets, calculator, apps, nextSection, previousSection, workspace, enqueue, pasteNext
+    case toggle, clipboard, snippets, calculator, apps, vault, nextSection, previousSection, workspace, enqueue, pasteNext
     case nextResult, previousResult, downResult, upResult, pasteResult, copyResult, newSnippet, saveSnippet, editSnippet, favorite, preview, settings, close
+    case copyUsername, copyCode, lockVault
     case calculate, calculateEquals, copyCalculation, saveEditor, cancelEditor, closeSettings, quit
     case undo, redo, cut, copy, paste, selectAll
     var id: String { rawValue }
@@ -19,6 +20,10 @@ enum ShortcutAction: String, CaseIterable, Identifiable, Codable {
         case .snippets: return "Show Snippets"
         case .calculator: return "Show Calculator"
         case .apps: return "Show Apps"
+        case .vault: return "Show Vault"
+        case .copyUsername: return "Copy username"
+        case .copyCode: return "Copy verification code"
+        case .lockVault: return "Lock vault"
         case .nextSection: return "Next section"
         case .previousSection: return "Previous section"
         case .nextResult: return "Next result (wrap)"
@@ -52,7 +57,8 @@ enum ShortcutAction: String, CaseIterable, Identifiable, Codable {
     var group: String {
         switch self {
         case .toggle: return "Global"
-        case .clipboard, .snippets, .calculator, .apps, .nextSection, .previousSection: return "Sections"
+        case .clipboard, .snippets, .calculator, .apps, .vault, .nextSection, .previousSection: return "Sections"
+        case .copyUsername, .copyCode, .lockVault: return "Vault"
         case .calculate, .calculateEquals, .copyCalculation: return "Calculator"
         case .saveEditor, .cancelEditor: return "Editor"
         case .closeSettings, .quit, .settings: return "App"
@@ -66,7 +72,7 @@ enum ShortcutAction: String, CaseIterable, Identifiable, Codable {
         case .saveEditor, .cancelEditor: return [.editor]
         case .closeSettings: return [.settings]
         case .calculate, .calculateEquals, .copyCalculation: return [.calculator]
-        case .workspace, .clipboard, .snippets, .calculator, .apps, .nextSection, .previousSection, .newSnippet, .settings, .close: return [.launcher, .calculator]
+        case .workspace, .clipboard, .snippets, .calculator, .apps, .vault, .nextSection, .previousSection, .newSnippet, .settings, .close: return [.launcher, .calculator]
         default: return [.launcher]
         }
     }
@@ -81,6 +87,10 @@ enum ShortcutAction: String, CaseIterable, Identifiable, Codable {
         case .snippets: return .init(19, cmd)
         case .calculator: return .init(20, cmd)
         case .apps: return .init(21, cmd)
+        case .vault: return .init(23, cmd)
+        case .copyUsername: return .init(8, [.command, .shift])
+        case .copyCode: return .init(17, [.command, .shift])
+        case .lockVault: return .init(37, cmd)
         case .nextSection: return .init(48, .control)
         case .previousSection: return .init(48, [.control, .shift])
         case .nextResult: return .init(48)
@@ -158,7 +168,16 @@ final class ShortcutStore: ObservableObject {
     init(defaults: UserDefaults = AppEnvironment.defaults) {
         self.defaults = defaults
         var values = Dictionary(uniqueKeysWithValues: ShortcutAction.allCases.map { ($0.rawValue, $0.standard) })
-        if let data = defaults.data(forKey: "shortcuts.v1"), let saved = try? JSONDecoder().decode([String:KeyBinding].self, from: data) { values.merge(saved) { _, new in new } }
+        if let data = defaults.data(forKey: "shortcuts.v1"), let saved = try? JSONDecoder().decode([String:KeyBinding].self, from: data) {
+            values.merge(saved) { _, new in new }
+            // A command added since the last save starts unassigned if its default keys are already in use.
+            for action in ShortcutAction.allCases where saved[action.rawValue] == nil {
+                let taken = saved.contains { name, binding in
+                    ShortcutAction(rawValue: name).map { !$0.contexts.isDisjoint(with: action.contexts) } == true && binding.sameKeys(as: action.standard)
+                }
+                if taken { values[action.rawValue] = .disabled }
+            }
+        }
         bindings = values
     }
     subscript(_ action: ShortcutAction) -> KeyBinding { bindings[action.rawValue] ?? action.standard }
@@ -222,7 +241,7 @@ struct ShortcutsSettingsView: View {
     @EnvironmentObject var shortcuts: ShortcutStore
     @EnvironmentObject var theme: ThemeStore
     @State private var reset = false
-    private let groups = ["Global", "Sections", "Clipboard and snippet results", "Calculator", "Editor", "App", "Text editing"]
+    private let groups = ["Global", "Sections", "Clipboard and snippet results", "Vault", "Calculator", "Editor", "App", "Text editing"]
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Click a shortcut, then press its new keys. Escape cancels recording. Changes save immediately.").font(.caption).foregroundStyle(theme.secondary)

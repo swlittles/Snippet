@@ -1,6 +1,6 @@
 # User guide
 
-A native macOS clipboard-history and text-snippet launcher inspired by Alfred’s keyboard workflow. SwiftUI + AppKit; no dependencies or network requests. macOS 13+.
+A native macOS clipboard-history and text-snippet launcher inspired by Alfred’s keyboard workflow. SwiftUI + AppKit; no third-party runtime dependencies besides the Sparkle updater. Snippet makes network requests only for update checks and the optional Vault. macOS 13+.
 
 ## Run
 
@@ -116,6 +116,10 @@ If you have a persistent code-signing identity installed, set `SNIPPET_SIGNING_I
 Open Settings → Storage to choose **Forever** or an age limit, and **Unlimited** or an ordinary-clip count limit. Defaults are Forever and Unlimited, including when upgrading from earlier releases. Save cleanup rules to apply them; if existing clips would be removed, a confirmation shows the count. Favorites and snippets are excluded. Previously expired clips cannot be recovered by changing the rules.
 
 Data is local by default. Optional iCloud Drive folder sync is available in Workspace. No Snippet account is required. Calculation history is kept until cleared; clipboard cleanup settings only apply to ordinary clips.
+
+## Vault
+
+Turn on **Settings → Vault** to search a Bitwarden or Vaultwarden vault with **Command–5**. Type your master password to unlock it, then press **Return** to paste a password, **Command–Shift–C** to copy a username or **Command–Shift–T** to copy a verification code. See the [Vault guide](VAULT.md) for sign-in options, locking, and security details.
 
 ## Workspace, Markdown and sync
 

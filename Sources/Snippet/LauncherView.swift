@@ -14,6 +14,7 @@ struct ResultItem: Identifiable {
     var snippet: SnippetItem?
     var clip: Clip? = nil
     var app: AppEntry? = nil
+    var vault: VaultItem? = nil
     var usageKey = ""
     var frequent = false
     var uses = 0
@@ -58,6 +59,12 @@ final class LauncherModel: ObservableObject {
     private var subscriptions: Set<AnyCancellable> = []
     @Published var editing: SnippetItem?
     @Published var settings = false
+    /// The Settings section to show when Settings next opens.
+    @Published var settingsSection: Int?
+    @Published var vaultPassword = ""
+    /// A secure field being edited doesn't redraw when its value is reset, so each attempt gets a fresh one.
+    @Published var vaultFieldID = UUID()
+    @Published var vaultReprompt: VaultReprompt?
     @Published var workspaceOpen = false
     @Published var workspaceSection = 0
     @Published var templateRequest: TemplateRequest?
@@ -71,9 +78,13 @@ final class LauncherModel: ObservableObject {
         self.store = store; self.history = history; self.calculator = calculator; self.app = app
         // @Published emits before the value changes; hop to the next turn so refresh reads the new list.
         app.apps.$apps.dropFirst().receive(on: DispatchQueue.main).sink { [weak self] _ in self?.refresh() }.store(in: &subscriptions)
+        app.vault.$items.dropFirst().receive(on: DispatchQueue.main).sink { [weak self] _ in self?.refresh() }.store(in: &subscriptions)
+        // Locking and unlocking swap the search field for the password field; keep keyboard focus there.
+        app.vault.$state.dropFirst().removeDuplicates().receive(on: DispatchQueue.main).sink { [weak self] _ in self?.message = ""; self?.refresh(); self?.focusToken = UUID() }.store(in: &subscriptions)
     }
     private func computeResults() -> [ResultItem] {
         if tab == .calculator { return [] }
+        if tab == .vault { return app.vault.state == .unlocked ? app.vault.search(query, favorites: filter == .favorites).map(vaultResult) : [] }
         let usage = app.usage, now = Date()
         if tab == .apps { return app.apps.search(query, usage: usage).map(appResult) }
         let isSnip = query.lowercased().hasPrefix("snip ")
@@ -99,6 +110,10 @@ final class LauncherModel: ObservableObject {
         }
         return items
     }
+    /// Vault results carry no text of their own, so previews, tools and the queue never receive a secret.
+    private func vaultResult(_ item: VaultItem) -> ResultItem {
+        ResultItem(id: item.resultID, title: item.name, text: "", subtitle: item.subtitle, favorite: item.favorite, snippet: nil, vault: item)
+    }
     private func appResult(_ entry: AppEntry) -> ResultItem {
         ResultItem(id: entry.id, title: entry.name, text: entry.url.path, subtitle: entry.location, favorite: false, snippet: nil, app: entry, usageKey: entry.usageKey)
     }
@@ -109,17 +124,19 @@ final class LauncherModel: ObservableObject {
         if !results.contains(where: { $0.id == selected }) { selected = results.first?.id }
     }
     func new() { editing = SnippetItem(title: "", text: "", tags: "", collection: collectionFilter.isEmpty ? nil : collectionFilter) }
+    var visibleTabs: [LauncherTab] { LauncherTab.visible(vault: app.vault.enabled) }
+    func openSettings(section: Int) { settingsSection = section; settings = true }
     func saveSelection() {
-        guard let current, current.app == nil else { return }
+        guard let current, current.app == nil, current.vault == nil else { return }
         editing = current.snippet ?? SnippetItem(title: current.title, text: current.text, tags: "")
     }
     func editSelection() {
-        guard let current, current.app == nil else { return }
+        guard let current, current.app == nil, current.vault == nil else { return }
         if let snippet = current.snippet { editing = snippet }
         else { editingClip = history.clips.first { $0.id == current.id } }
     }
     func toggleFavorite(_ item: ResultItem) {
-        guard item.app == nil else { return }
+        guard item.app == nil, item.vault == nil else { return }
         if var snippet = item.snippet { snippet.favorite.toggle(); store.save(snippet) }
         else { history.toggleFavorite(item.id) }
         refresh()
@@ -128,6 +145,7 @@ final class LauncherModel: ObservableObject {
     func choose(copy: Bool = false, formatted: Bool = false, textOnly: Bool = false, clicked: Bool = false) {
         guard let current else { return }
         if clicked { app.clickGuard.arm() }
+        if let item = current.vault { useVault(item, { item.primary }, copy: copy); return }
         if let entry = current.app {
             if copy { app.reveal(entry) } else { app.open(entry) }
             return
@@ -146,7 +164,7 @@ final class LauncherModel: ObservableObject {
         }
     }
     func enqueue() {
-        guard let current, current.app == nil else { return }
+        guard let current, current.app == nil, current.vault == nil else { return }
         do {
             let image = try current.clip.flatMap { history.imageURL($0) }.map { try Data(contentsOf: $0) }
             if app.workspace.update({ $0.queue.append(QueueEntry(title: current.title, text: current.text, image: image, template: current.snippet != nil)) }) { message = "Added to queue · \(app.workspace.data.queue.count) items" }
@@ -162,9 +180,35 @@ final class LauncherModel: ObservableObject {
             self?.app.workspace.update { $0.queue.removeAll { $0.id == entry.id } }
         }
     }
-    func switchTab(_ target: LauncherTab) { query = ""; message = ""; tab = target }
+    func switchTab(_ target: LauncherTab) {
+        guard visibleTabs.contains(target) else { return }
+        query = ""; message = ""; vaultPassword = ""; tab = target
+        if target == .vault { refreshVaultIfNeeded() }
+    }
     func cycleTab(backward: Bool = false) {
-        switchTab(tab.cycled(backward: backward))
+        switchTab(tab.cycled(backward: backward, in: visibleTabs))
+    }
+    func unlockVault() {
+        let password = vaultPassword
+        guard !password.isEmpty, !app.vault.busy else { return }
+        vaultPassword = ""; vaultFieldID = UUID()
+        Task { await app.vault.unlock(password: password); await app.vault.refresh() }
+    }
+    func refreshVaultIfNeeded() { if app.vault.needsRefresh { Task { await app.vault.refresh() } } }
+    /// Pastes or copies a vault value, evaluated at that moment so verification codes are current.
+    /// Secrets of items that ask for the master password wait until it's confirmed.
+    func useVault(_ item: VaultItem, _ field: @escaping () -> VaultItem.Field?, copy: Bool = false, keepOpen: Bool = false) {
+        guard let preview = field(), !preview.value.isEmpty else { message = "This item has nothing to " + (copy ? "copy" : "paste") + "."; return }
+        let deliver = { [weak self] in
+            guard let self, let value = field() else { return }
+            self.app.vault.touch()
+            if keepOpen {
+                self.app.copyText(value.value, concealed: true)
+                let seconds = self.app.vault.clipboardSeconds
+                self.message = value.name + " copied" + (seconds > 0 ? ". The clipboard clears in \(seconds) seconds." : ".")
+            } else { self.app.pasteText(value.value, copyOnly: copy, concealed: true) }
+        }
+        if item.reprompt && preview.hidden { vaultReprompt = VaultReprompt(item: item, perform: deliver) } else { deliver() }
     }
     func calculate() {
         do {
@@ -195,7 +239,7 @@ final class LauncherModel: ObservableObject {
         let next = ResultNavigation.index(current: current, count: list.count, backward: backward, wraps: wraps)
         selected = list[next].id
     }
-    var shortcutContext: ShortcutContext { (editing != nil || editingClip != nil || templateRequest != nil) ? .editor : (settings || workspaceOpen) ? .settings : tab == .calculator ? .calculator : .launcher }
+    var shortcutContext: ShortcutContext { (editing != nil || editingClip != nil || templateRequest != nil || vaultReprompt != nil) ? .editor : (settings || workspaceOpen) ? .settings : tab == .calculator ? .calculator : .launcher }
     func handle(_ event: NSEvent) -> Bool {
         guard let action = app.shortcuts.match(event, in: shortcutContext) else { return false }
         return perform(action)
@@ -211,13 +255,25 @@ final class LauncherModel: ObservableObject {
         case .snippets: switchTab(.snippets)
         case .calculator: switchTab(.calculator)
         case .apps: switchTab(.apps)
+        case .vault:
+            guard app.vault.enabled else { return false }
+            switchTab(.vault)
+        case .copyUsername, .copyCode, .lockVault:
+            guard tab == .vault, app.vault.state == .unlocked else { return false }
+            if action == .lockVault { app.vault.lock(); break }
+            guard let item = current?.vault else { return false }
+            if action == .copyUsername { useVault(item, { item.usernameField }, copy: true) } else { useVault(item, { item.codeField() }, copy: true) }
         case .nextSection: cycleTab()
         case .previousSection: cycleTab(backward: true)
         case .nextResult: moveResult(backward: false, wraps: true)
         case .previousResult: moveResult(backward: true, wraps: true)
         case .downResult: moveResult(backward: false, wraps: false)
         case .upResult: moveResult(backward: true, wraps: false)
-        case .pasteResult: choose()
+        case .pasteResult:
+            if tab == .vault && app.vault.state != .unlocked {
+                guard app.vault.state == .locked else { return false }
+                unlockVault()
+            } else { choose() }
         case .copyResult: choose(copy: true)
         case .newSnippet: new()
         case .saveSnippet: saveSelection()
@@ -228,7 +284,7 @@ final class LauncherModel: ObservableObject {
         case .close: app.hide()
         case .calculate, .calculateEquals: calculate()
         case .copyCalculation: copyCalculation()
-        case .cancelEditor: editing = nil; editingClip = nil; templateRequest = nil
+        case .cancelEditor: editing = nil; editingClip = nil; templateRequest = nil; vaultReprompt = nil
         case .closeSettings: settings = false; workspaceOpen = false
         case .quit: app.quit()
         // SwiftUI handles the editor's draft; AppKit handles text editing through the responder chain.
@@ -243,6 +299,7 @@ struct LauncherView: View {
     @ObservedObject var model: LauncherModel
     @ObservedObject var store: Store
     @ObservedObject var history: History
+    @ObservedObject var vault: VaultStore
     @AppStorage("historyEnabled", store: AppEnvironment.defaults) var historyEnabled = false
     @FocusState private var searchFocused: Bool
     @EnvironmentObject var theme: ThemeStore
@@ -256,12 +313,17 @@ struct LauncherView: View {
             if let error = store.error ?? history.error ?? model.app.usage.error {
                 Text(error).foregroundStyle(.orange).padding()
             }
+            if model.tab == .vault && !vault.message.isEmpty {
+                Text(vault.message).font(.system(size: 12)).foregroundStyle(.orange).padding(.horizontal, 20).padding(.vertical, 8).frame(maxWidth: .infinity, alignment: .leading)
+            }
             if model.tab == .calculator { CalculatorView(model: model, calculator: model.calculator) }
-            else if model.results.isEmpty { emptyState } else { resultList }
+            else if model.results.isEmpty { if model.tab == .vault { vaultEmptyState } else { emptyState } } else { resultList }
             if model.preview, let current = model.current {
                 Divider()
                 Group {
-                    if let clip = current.clip, let url = history.imageURL(clip), let image = ImageCache.image(url) {
+                    if let item = current.vault {
+                        VaultDetailView(item: item) { field in model.useVault(item, field, copy: true, keepOpen: true) }
+                    } else if let clip = current.clip, let url = history.imageURL(clip), let image = ImageCache.image(url) {
                         HStack { Image(nsImage: image).resizable().scaledToFit(); ScrollView { Text(current.text).font(.caption).textSelection(.enabled) } }.padding(8)
                     } else { MarkdownPreview(text: current.text) }
                 }.frame(height: 130)
@@ -279,11 +341,16 @@ struct LauncherView: View {
         .onChange(of: model.results.count) { _ in model.app.resizeLauncher() }
         .onChange(of: model.preview) { _ in model.app.resizeLauncher() }
         .onChange(of: model.focusToken) { _ in searchFocused = true }
+        // The password field replaces the search field, or a fresh one replaces it; focus it once it exists.
+        .onChange(of: model.tab == .vault && vault.state == .locked) { _ in DispatchQueue.main.async { searchFocused = true } }
+        .onChange(of: model.vaultFieldID) { _ in DispatchQueue.main.async { searchFocused = true } }
         .onChange(of: store.items) { _ in model.refresh() }
         .onChange(of: history.clips) { _ in model.refresh() }
+        .onChange(of: vault.enabled) { enabled in if !enabled && model.tab == .vault { model.switchTab(.history) } }
         .sheet(item: $model.editing, onDismiss: { searchFocused = true }) { item in EditorView(item: item, store: store, collections: model.collections) }
         .sheet(item: $model.editingClip, onDismiss: { searchFocused = true }) { clip in ClipEditorView(clip: clip, history: history) }
         .sheet(isPresented: $model.settings, onDismiss: { searchFocused = true }) { SettingsView(history: history, expansion: model.app.expansion, app: model.app) }
+        .sheet(item: $model.vaultReprompt, onDismiss: { searchFocused = true }) { request in VaultRepromptView(request: request, vault: vault) }
         .sheet(isPresented: $model.workspaceOpen) { WorkspaceView(model: model, workspace: model.app.workspace, store: store, sync: model.app.librarySync) }
         .sheet(item: $model.templateRequest) { request in
             TemplateView(request: request) { value, formatted in
@@ -297,6 +364,7 @@ struct LauncherView: View {
         switch model.tab {
         case .calculator: return "Calculate…  e.g. (24 + 18) / 6"
         case .apps: return "Search apps…"
+        case .vault: return vault.state == .locked ? "Master password" : "Search your vault…"
         default: return "Search copied text, apps, or type snip…"
         }
     }
@@ -306,21 +374,27 @@ struct LauncherView: View {
             if AppEnvironment.current.isDevelopment {
                 Text("DEV").font(.system(size: 10, weight: .bold)).padding(5).background(theme.selection, in: RoundedRectangle(cornerRadius: 4)).accessibilityLabel("Development build")
             }
-            TextField(placeholder, text: model.tab == .calculator ? $model.expression : $model.query).textFieldStyle(.plain).font(.system(size: 24)).focused($searchFocused).accessibilityLabel(model.tab == .calculator ? "Calculator expression" : model.tab == .apps ? "Search apps" : "Search clipboard and snippets")
-            if !(model.tab == .calculator ? model.expression : model.query).isEmpty { Button { if model.tab == .calculator { model.expression = "" } else { model.query = "" } } label: { Image(systemName: "xmark.circle.fill") }.buttonStyle(PointerButtonStyle()).help("Clear search") }
+            if model.tab == .vault && vault.state == .locked {
+                SecureField(placeholder, text: $model.vaultPassword).textFieldStyle(.plain).font(.system(size: 24)).focused($searchFocused).accessibilityLabel("Master password").id(model.vaultFieldID)
+            } else {
+                TextField(placeholder, text: model.tab == .calculator ? $model.expression : $model.query).textFieldStyle(.plain).font(.system(size: 24)).focused($searchFocused).accessibilityLabel(model.tab == .calculator ? "Calculator expression" : model.tab == .apps ? "Search apps" : model.tab == .vault ? "Search vault" : "Search clipboard and snippets")
+            }
+            if !(model.tab == .vault && vault.state == .locked), !(model.tab == .calculator ? model.expression : model.query).isEmpty { Button { if model.tab == .calculator { model.expression = "" } else { model.query = "" } } label: { Image(systemName: "xmark.circle.fill") }.buttonStyle(PointerButtonStyle()).help("Clear search") }
         }.padding(22)
     }
     var tabs: some View {
         HStack(spacing: 6) {
-            ForEach(LauncherTab.allCases, id: \.self) { tab in
+            ForEach(model.visibleTabs, id: \.self) { tab in
                 Button { model.switchTab(tab) } label: {
                     Text(tab.rawValue + "  " + shortcuts.label(tab.shortcutAction)).font(.system(size: 12, weight: .medium)).padding(.horizontal, 12).padding(.vertical, 6)
-                        .background((model.tab != .apps && model.query.lowercased().hasPrefix("snip ") ? tab == .snippets : model.tab == tab) ? theme.selection : .clear, in: Capsule())
+                        .background((model.tab != .apps && model.tab != .vault && model.query.lowercased().hasPrefix("snip ") ? tab == .snippets : model.tab == tab) ? theme.selection : .clear, in: Capsule())
                 }.buttonStyle(PointerButtonStyle())
             }
             if model.tab == .history || model.tab == .snippets {
                 filterButton(.favorites, icon: "star", label: "Favorites only", help: "Show favorites only")
                 filterButton(.frequent, icon: "flame", label: "Frequently used", help: "Show what you’ve used most in the last few days")
+            } else if model.tab == .vault && vault.state == .unlocked {
+                filterButton(.favorites, icon: "star", label: "Favorites only", help: "Show vault favorites only")
             }
             Spacer()
             Menu {
@@ -350,7 +424,7 @@ struct LauncherView: View {
         }
     }
     @ViewBuilder func row(_ item: ResultItem, index: Int) -> some View {
-        if let entry = item.app { appRow(item, entry) } else { textRow(item) }
+        if let entry = item.app { appRow(item, entry) } else if let entry = item.vault { vaultRow(item, entry) } else { textRow(item) }
     }
     func subtitle(_ item: ResultItem) -> String {
         var parts: [String] = []
@@ -417,6 +491,58 @@ struct LauncherView: View {
                 Button("Copy path") { model.app.copyText(entry.url.path); model.message = "Path copied" }
             }
     }
+    func vaultRow(_ item: ResultItem, _ entry: VaultItem) -> some View {
+        selectable(item, HStack(spacing: 12) {
+            Image(systemName: entry.icon).foregroundStyle(accent).frame(width: 32)
+            VStack(alignment: .leading, spacing: 5) {
+                Text(item.title).font(.system(size: 14, weight: .medium)).lineLimit(1)
+                Text(item.subtitle).font(.system(size: 11)).foregroundStyle(theme.secondary).lineLimit(1)
+            }
+            Spacer()
+            if entry.reprompt { Image(systemName: "lock.shield").font(.system(size: 11)).foregroundStyle(theme.secondary).help("Asks for your master password").accessibilityLabel("Asks for master password") }
+            if !entry.totp.isEmpty { Image(systemName: "clock").font(.system(size: 11)).foregroundStyle(theme.secondary).help("Verification code · " + shortcuts.label(.copyCode)).accessibilityLabel("Has verification code") }
+            if entry.favorite { Image(systemName: "star.fill").font(.system(size: 11)).foregroundStyle(accent).accessibilityLabel("Favorite") }
+            if model.selected == item.id {
+                if let primary = entry.primary { Text(primary.name).font(.system(size: 11)).foregroundStyle(theme.secondary) }
+                Image(systemName: "return").foregroundStyle(accent).font(.system(size: 12))
+            }
+        })
+            .contextMenu {
+                if let primary = entry.primary {
+                    Button("Paste " + primary.name.lowercased()) { model.selected = item.id; model.choose() }
+                    Button("Copy " + primary.name.lowercased()) { model.selected = item.id; model.choose(copy: true) }
+                    Divider()
+                }
+                if entry.usernameField != nil { Button("Copy username") { model.useVault(entry, { entry.usernameField }, copy: true) } }
+                if entry.passwordField != nil { Button("Copy password") { model.useVault(entry, { entry.passwordField }, copy: true) } }
+                if !entry.totp.isEmpty { Button("Copy verification code") { model.useVault(entry, { entry.codeField() }, copy: true) } }
+                if !entry.fields.isEmpty {
+                    Menu("Copy field") { ForEach(Array(entry.fields.enumerated()), id: \.offset) { _, field in Button(field.name) { model.useVault(entry, { field }, copy: true) } } }
+                }
+                if let url = entry.launchURL { Button("Open website") { model.app.hide(restoreFocus: false); NSWorkspace.shared.open(url) } }
+                Button("Show details") { model.selected = item.id; model.preview = true }
+                Divider()
+                Button("Lock vault") { vault.lock() }
+            }
+    }
+    var vaultEmptyState: some View {
+        VStack(spacing: 12) {
+            Image(systemName: vault.state == .unlocked ? "key" : "lock.shield").font(.system(size: 30, weight: .light)).foregroundStyle(accent)
+            switch vault.state {
+            case .signedOut:
+                Text("Connect your vault").font(.system(size: 18, weight: .medium))
+                Text("Sign in to Bitwarden, or to your own Bitwarden or Vaultwarden server, to search and paste your logins.").font(.system(size: 12)).foregroundStyle(theme.secondary).multilineTextAlignment(.center)
+                Button("Set up vault…") { model.openSettings(section: 5) }.buttonStyle(.borderedProminent).pointerCursor().tint(accent)
+            case .locked:
+                Text(vault.busy ? "Unlocking…" : "Vault locked").font(.system(size: 18, weight: .medium))
+                if vault.busy { ProgressView().controlSize(.small) }
+                else { Text("Type your master password above and press Return.").font(.system(size: 12)).foregroundStyle(theme.secondary) }
+            case .unlocked:
+                Text(!model.query.isEmpty ? "No matching items" : model.filter == .favorites ? "No favorites" : "Your vault is empty").font(.system(size: 18, weight: .medium))
+                Text("Search by name, username, website or folder.").font(.system(size: 12)).foregroundStyle(theme.secondary)
+            }
+        }.padding(.horizontal, 40).frame(maxWidth: .infinity).frame(height: model.listHeight)
+    }
     var emptyTitle: String {
         if model.tab == .apps { return model.query.isEmpty ? "Looking for apps…" : "No matching apps" }
         switch model.filter {
@@ -446,6 +572,9 @@ struct LauncherView: View {
         switch model.tab {
         case .calculator: return "\(shortcuts.label(.calculate)) Calculate    \(shortcuts.label(.copyCalculation)) Copy result"
         case .apps: return "\(shortcuts.label(.nextResult)) Next app    \(shortcuts.label(.pasteResult)) Open    \(shortcuts.label(.copyResult)) Show in Finder"
+        case .vault:
+            guard vault.state == .unlocked else { return vault.state == .locked ? "\(shortcuts.label(.pasteResult)) Unlock" : "" }
+            return "\(shortcuts.label(.pasteResult)) Paste    \(shortcuts.label(.copyResult)) Copy    \(shortcuts.label(.copyUsername)) Username    \(shortcuts.label(.copyCode)) Code    \(shortcuts.label(.lockVault)) Lock"
         default: return "\(shortcuts.label(.nextResult)) Next result    \(shortcuts.label(.pasteResult)) Paste    \(shortcuts.label(.saveSnippet)) Save"
         }
     }
@@ -458,8 +587,11 @@ struct LauncherView: View {
             if model.tab == .history || model.tab == .snippets {
                 Button { model.openWorkspace(1) } label: { Image(systemName: "text.badge.plus") }.help("Paste queue")
                 Button { model.preview.toggle() } label: { Image(systemName: "eye") }.help("Preview · " + shortcuts.label(.preview))
+            } else if model.tab == .vault && vault.state == .unlocked {
+                Button { vault.lock() } label: { Image(systemName: "lock") }.help("Lock vault · " + shortcuts.label(.lockVault))
+                Button { model.preview.toggle() } label: { Image(systemName: "eye") }.help("Details · " + shortcuts.label(.preview))
             }
-            if model.tab != .calculator { Button(model.current?.app == nil ? "Copy" : "Show in Finder") { model.choose(copy: true) }.disabled(model.current == nil) }
+            if model.tab != .calculator && !(model.tab == .vault && vault.state != .unlocked) { Button(model.current?.app == nil ? "Copy" : "Show in Finder") { model.choose(copy: true) }.disabled(model.current == nil) }
         }.buttonStyle(PointerButtonStyle()).font(.system(size: 10)).padding(.horizontal, 20).frame(height: 38)
     }
 }
@@ -478,13 +610,14 @@ struct SettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack { LogoMark(color: theme.accent).frame(width: 32, height: 32); Text(AppEnvironment.current.name + " settings").font(.title2.bold()); Spacer() }
-            Picker("Settings section", selection: $section) { Text("General").tag(0); Text("Appearance").tag(1); Text("Shortcuts").tag(2); Text("Storage").tag(4); Text("Updates").tag(3) }.pickerStyle(.segmented).labelsHidden()
-            if section == 1 { ThemeSettingsView() } else if section == 2 { ShortcutsSettingsView() } else if section == 3 { UpdatesSettingsView(updates: app.updates) } else if section == 4 { VStack(alignment: .leading, spacing: 14) { StorageSettingsView(history: history); Button("Library sync and packs…") { app.model.settings = false; DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { app.model.openWorkspace(5) } }.pointerCursor() } } else { general }
+            Picker("Settings section", selection: $section) { Text("General").tag(0); Text("Appearance").tag(1); Text("Shortcuts").tag(2); Text("Storage").tag(4); Text("Vault").tag(5); Text("Updates").tag(3) }.pickerStyle(.segmented).labelsHidden()
+            if section == 5 { VaultSettingsView(vault: app.vault) } else if section == 1 { ThemeSettingsView() } else if section == 2 { ShortcutsSettingsView() } else if section == 3 { UpdatesSettingsView(updates: app.updates) } else if section == 4 { VStack(alignment: .leading, spacing: 14) { StorageSettingsView(history: history); Button("Library sync and packs…") { app.model.settings = false; DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { app.model.openWorkspace(5) } }.pointerCursor() } } else { general }
             Divider()
             HStack { Button("Open data folder") { app.dataFolder() }.pointerCursor(); Spacer(); Button("Done") { dismiss() }.keyboardShortcut(shortcuts[.closeSettings].swiftUI).pointerCursor() }
         }.padding(26).frame(width: 530).foregroundStyle(theme.text).background(theme.background).tint(theme.accent)
             .preferredColorScheme(theme.palette.isDark ? .dark : .light)
             .onChange(of: expansionEnabled) { _ in expansion.update() }
+            .onAppear { if let requested = app.model.settingsSection { section = requested; app.model.settingsSection = nil } }
             .alert("Clear clipboard history?", isPresented: $clear) {
                 Button("Clear history", role: .destructive) { history.clear() }
                 Button("Cancel", role: .cancel) {}
