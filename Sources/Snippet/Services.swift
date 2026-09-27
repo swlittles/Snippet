@@ -139,6 +139,7 @@ final class FollowUpClickGuard {
 final class ExpansionService: ObservableObject {
     let store: Store
     @Published var status = "Off"
+    @Published private(set) var accessibilityTrusted = AXIsProcessTrusted()
     var tap: CFMachPort?
     var source: CFRunLoopSource?
     var timer: Timer?
@@ -148,8 +149,10 @@ final class ExpansionService: ObservableObject {
     init(store: Store) { self.store = store }
     func start() { timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.update() }; update() }
     func update() {
+        let trusted = AXIsProcessTrusted()
+        if trusted != accessibilityTrusted { accessibilityTrusted = trusted }
         guard AppEnvironment.defaults.bool(forKey: "expansionEnabled") else { stop(); status = "Off"; return }
-        guard AXIsProcessTrusted() else { stop(); status = "Needs Accessibility access"; return }
+        guard trusted else { stop(); status = "Needs Accessibility access"; return }
         guard tap == nil else { status = "Ready — type a snippet’s ;keyword"; return }
         let mask = (1 << CGEventType.keyDown.rawValue) | (1 << CGEventType.leftMouseDown.rawValue) | (1 << CGEventType.rightMouseDown.rawValue)
         tap = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .headInsertEventTap, options: .defaultTap, eventsOfInterest: CGEventMask(mask), callback: { proxy, type, event, context in

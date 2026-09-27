@@ -39,6 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     var model: LauncherModel!
     var hotkeyMessage = ""
     private var statusMenu: NSMenu?
+    private var accessibilityItem: NSMenuItem?
     private var menuSession = MenuTrackingSession()
     private var trackingStatusMenu: NSMenu?
     private var menuOutsideClickMonitor: Any?
@@ -174,6 +175,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         if updates.enabled { menu.addItem(updates.menuItem()) }
         menu.addItem(.separator())
         let access = NSMenuItem(title: "Enable Accessibility…", action: #selector(accessibility), keyEquivalent: ""); access.target = self; menu.addItem(access)
+        accessibilityItem = access
         let folder = NSMenuItem(title: "Show Data Folder", action: #selector(dataFolder), keyEquivalent: ""); folder.target = self; menu.addItem(folder)
         menu.addItem(.separator()); menu.addItem(menuItem(.quit, selector: #selector(quit)))
         menu.delegate = self
@@ -198,6 +200,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     func menuWillOpen(_ menu: NSMenu) {
         guard menu === statusMenu else { return }
         trackingStatusMenu = menu
+        let trusted = AXIsProcessTrusted()
+        accessibilityItem?.title = trusted ? "Accessibility Enabled" : "Enable Accessibility…"
+        accessibilityItem?.state = trusted ? .on : .off
         let generation = menuSession.begin(at: ProcessInfo.processInfo.systemUptime)
         if let monitor = menuOutsideClickMonitor { NSEvent.removeMonitor(monitor) }
         menuOutsideClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self, weak menu] event in

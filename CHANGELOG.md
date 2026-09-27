@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.6.1
+
+- Show whether Accessibility access is granted. Settings shows "Accessibility access is on" instead of the enable link, and the menu-bar item reads "Accessibility Enabled" with a checkmark. Both previously always asked you to enable it.
+
 ## 3.6.0
 
 - Add an optional **Vault** section (Command–5) that searches a Bitwarden vault on Bitwarden.com, Bitwarden.eu, a self-hosted Bitwarden server or Vaultwarden, and pastes passwords, usernames, notes, card details and verification codes. Items are read-only for now.

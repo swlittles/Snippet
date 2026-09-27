@@ -1,14 +1,8 @@
 A native macOS clipboard, snippet, and calculator launcher. Requires macOS 13 or newer; one universal app supports Apple Silicon and Intel.
 
-### What’s new in 3.6.0
+### What’s new in 3.6.1
 
-- **Vault.** Search your Bitwarden vault from the launcher with Command–5 and paste passwords, usernames, notes, card details and verification codes. It works with Bitwarden.com, Bitwarden.eu, self-hosted Bitwarden and Vaultwarden. Turn it on in Settings → Vault.
-- **Two-step login.** Sign in with authenticator, email or YubiKey codes and remember this Mac, or use a personal API key if your account uses Duo or a security key.
-- **Private by design.** Your master password is never saved or sent. The vault is decrypted on this Mac, and decrypted items stay in memory only while it's unlocked. It locks after inactivity and when your Mac sleeps or its screen locks.
-- **Safer clipboard.** Copied vault values are marked confidential, so clipboard history skips them, and they're cleared after 30 seconds by default.
-- Command–Shift–C copies a username, Command–Shift–T copies a verification code and Command–L locks the vault. Items that require your master password again ask for it before secrets are used.
-
-Vault items are read-only in this release. Vault is off by default, and Snippet connects only to the server you choose. See the Vault guide in the repository for details.
+- Snippet now shows when Accessibility access is already granted. Settings reads "Accessibility access is on", and the menu-bar item shows a checked "Accessibility Enabled", instead of always asking you to enable it.
 
 From 3.3.0 or later, choose **Check for Updates…** to install this release. Versions 3.2.x require one manual upgrade to gain the updater.
 

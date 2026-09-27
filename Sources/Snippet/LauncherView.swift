@@ -632,7 +632,11 @@ struct SettingsView: View {
             Toggle("Expand snippet keywords as I type", isOn: $expansionEnabled).pointerCursor()
             Text("Assign a keyword such as ;email to a snippet. Type it in another app to replace it with your saved text. Secure input and password apps are excluded.").font(.caption).foregroundStyle(theme.secondary).fixedSize(horizontal: false, vertical: true)
             Text(expansion.status).font(.caption).foregroundStyle(theme.secondary).fixedSize(horizontal: false, vertical: true)
-            Button { app.accessibility() } label: { Label("Enable Accessibility…", systemImage: "arrow.up.right.square").foregroundStyle(theme.accent).underline() }.buttonStyle(PointerButtonStyle()).help("Open macOS Accessibility settings")
+            if expansion.accessibilityTrusted {
+                Label("Accessibility access is on", systemImage: "checkmark.circle").font(.caption).foregroundStyle(theme.secondary)
+            } else {
+                Button { app.accessibility() } label: { Label("Enable Accessibility…", systemImage: "arrow.up.right.square").foregroundStyle(theme.accent).underline() }.buttonStyle(PointerButtonStyle()).help("Open macOS Accessibility settings")
+            }
             Divider()
             Text("\(shortcuts.label(.toggle)) opens Snippet. \(shortcuts.label(.clipboard)) Clipboard · \(shortcuts.label(.snippets)) Snippets · \(shortcuts.label(.calculator)) Calculator · \(shortcuts.label(.apps)) Apps. \(shortcuts.label(.nextResult)) / \(shortcuts.label(.previousResult)) moves through results. Customize every command in Shortcuts.").font(.caption).foregroundStyle(theme.secondary).fixedSize(horizontal: false, vertical: true)
         }
