@@ -17,8 +17,10 @@ Your server address, email and preferences are saved only in Snippet’s setting
 
 Press **Command–5**, or click **Vault** beside the other sections. When the vault is locked, type your master password in the search field and press **Return**.
 
-- **Return** pastes the item’s main value into the app you were using: a login’s password (or its username if there’s no password), a note’s text, a card number, an identity’s email or an SSH public key.
-- **Command–Return** copies the value instead.
+- **Return** on a login with a username and password fills the sign-in form you were on: Snippet pastes the username, presses Tab, then pastes the password. Click into the username field first. It doesn’t submit the form.
+- For other items, **Return** pastes the main value into the app you were using: a login’s password or username (whichever it has), a note’s text, a card number, an identity’s email or an SSH public key.
+- **Command–Return** copies the main value instead (a login’s password).
+- The person and password buttons on each login copy its username or password.
 - **Command–Shift–C** copies the username. **Command–Shift–T** copies the current verification code.
 - **Command–P** shows every field, with buttons to reveal secrets and copy each value. Copying from the details keeps the launcher open.
 - Right-click a result to copy any field or open its website.
@@ -59,4 +61,4 @@ Snippet is an independent client and isn’t affiliated with or endorsed by Bitw
 - Duo and security-key two-step login require the personal API key sign-in.
 - Accounts that unlock without a master password (SSO with trusted devices or Key Connector) aren’t supported.
 - Attachments, Sends and passkeys aren’t shown. Linked custom fields are omitted.
-- Snippet doesn’t fill in web forms automatically. Paste the username and password separately.
+- Filling assumes the password field follows the username field. For sign-in pages that ask for the username and password on separate screens, copy or paste each one separately.

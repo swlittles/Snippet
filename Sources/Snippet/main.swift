@@ -326,6 +326,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         activate(target)
         attemptPaste(target, started: Date(), cursorMoves: cursorMoves, completion: completion)
     }
+    /// Pastes the username, presses Tab, then pastes the password. The pauses let
+    /// the destination read the clipboard before it changes and move focus to the next field.
+    func fill(username: String, password: String) {
+        pasteText(username, copyOnly: false, concealed: true) { [weak self] in
+            guard let self, let target = self.previousApp else { return }
+            func frontmost() -> Bool { NSWorkspace.shared.frontmostApplication?.processIdentifier == target.processIdentifier }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                guard frontmost() else { return }
+                postKey(CGKeyCode(kVK_Tab))
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    guard frontmost() else { return }
+                    self.copyText(password, concealed: true)
+                    postPaste()
+                }
+            }
+        }
+    }
     /// Waits for the destination to come forward, then gives its window a moment
     /// to regain keyboard focus. Frontmost alone isn't enough: a Command–V sent
     /// during the switch is often dropped.

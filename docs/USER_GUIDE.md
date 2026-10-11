@@ -119,7 +119,7 @@ Data is local by default. Optional iCloud Drive folder sync is available in Work
 
 ## Vault
 
-Turn on **Settings → Vault** to search a Bitwarden or Vaultwarden vault with **Command–5**. Type your master password to unlock it, then press **Return** to paste a password, **Command–Shift–C** to copy a username or **Command–Shift–T** to copy a verification code. See the [Vault guide](VAULT.md) for sign-in options, locking, and security details.
+Turn on **Settings → Vault** to search a Bitwarden or Vaultwarden vault with **Command–5**. Type your master password to unlock it, then press **Return** to fill a login’s username and password, click the buttons on a login to copy its username or password, **Command–Shift–C** to copy a username or **Command–Shift–T** to copy a verification code. See the [Vault guide](VAULT.md) for sign-in options, locking, and security details.
 
 ## Workspace, Markdown and sync
 

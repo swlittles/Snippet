@@ -193,6 +193,8 @@ extension StoreTests {
         XCTAssertEqual(login.hosts, ["mail.example.org"])
         XCTAssertEqual(login.fields, [.init(name: "PIN", value: "4321", hidden: true)])
         XCTAssertEqual(login.primary, .init(name: "Password", value: "hunter2", hidden: true))
+        XCTAssertTrue(login.fillsLogin)
+        XCTAssertFalse(VaultItem(id: "a", kind: .login, name: "No user", password: "x").fillsLogin)
         XCTAssertEqual(login.codeField()?.value, TOTP(secret: Base32.decode(server.totpSecret)!).code())
         XCTAssertEqual(login.resultID.uuidString, "11111111-1111-1111-1111-111111111111")
         XCTAssertEqual(vault.items.first { $0.name == "Keyed item" }?.password, "s3cret")

@@ -1,8 +1,9 @@
 A native macOS clipboard, snippet, and calculator launcher. Requires macOS 13 or newer; one universal app supports Apple Silicon and Intel.
 
-### What’s new in 3.6.1
+### What’s new in 3.7.0
 
-- Snippet now shows when Accessibility access is already granted. Settings reads "Accessibility access is on", and the menu-bar item shows a checked "Accessibility Enabled", instead of always asking you to enable it.
+- **Fill sign-in forms from the Vault.** Click into a username field, open the Vault and press Return: Snippet pastes the username, presses Tab and pastes the password. Previously Return pasted only the password, into whichever field was focused.
+- **Copy buttons on every login.** Each vault login now has buttons to copy its username or password individually.
 
 From 3.3.0 or later, choose **Check for Updates…** to install this release. Versions 3.2.x require one manual upgrade to gain the updater.
 

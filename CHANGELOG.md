@@ -1,5 +1,10 @@
 # Changelog
 
+## 3.7.0
+
+- Fill sign-in forms from the Vault. Return on a login with a username and password pastes the username, presses Tab and pastes the password, instead of pasting only the password into the focused field. The context menu still offers Paste password.
+- Add username and password copy buttons to each vault login.
+
 ## 3.6.1
 
 - Show whether Accessibility access is granted. Settings shows "Accessibility access is on" instead of the enable link, and the menu-bar item reads "Accessibility Enabled" with a checkmark. Both previously always asked you to enable it.

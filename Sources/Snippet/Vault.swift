@@ -101,6 +101,8 @@ extension VaultItem {
     }
     var usernameField: Field? { username.isEmpty ? nil : Field(name: "Username", value: username) }
     var passwordField: Field? { password.isEmpty ? nil : Field(name: "Password", value: password, hidden: true) }
+    /// Logins with both a username and a password fill a sign-in form instead of pasting one value.
+    var fillsLogin: Bool { kind == .login && !username.isEmpty && !password.isEmpty }
 }
 
 extension String { var nonEmpty: String? { isEmpty ? nil : self } }

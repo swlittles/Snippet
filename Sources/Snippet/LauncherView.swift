@@ -145,7 +145,10 @@ final class LauncherModel: ObservableObject {
     func choose(copy: Bool = false, formatted: Bool = false, textOnly: Bool = false, clicked: Bool = false) {
         guard let current else { return }
         if clicked { app.clickGuard.arm() }
-        if let item = current.vault { useVault(item, { item.primary }, copy: copy); return }
+        if let item = current.vault {
+            if !copy && item.fillsLogin { fillVault(item) } else { useVault(item, { item.primary }, copy: copy) }
+            return
+        }
         if let entry = current.app {
             if copy { app.reveal(entry) } else { app.open(entry) }
             return
@@ -209,6 +212,15 @@ final class LauncherModel: ObservableObject {
             } else { self.app.pasteText(value.value, copyOnly: copy, concealed: true) }
         }
         if item.reprompt && preview.hidden { vaultReprompt = VaultReprompt(item: item, perform: deliver) } else { deliver() }
+    }
+    /// Types a login into the form you were on: its username, Tab, then its password.
+    func fillVault(_ item: VaultItem) {
+        let deliver = { [weak self] in
+            guard let self else { return }
+            self.app.vault.touch()
+            self.app.fill(username: item.username, password: item.password)
+        }
+        if item.reprompt { vaultReprompt = VaultReprompt(item: item, perform: deliver) } else { deliver() }
     }
     func calculate() {
         do {
@@ -502,19 +514,33 @@ struct LauncherView: View {
             if entry.reprompt { Image(systemName: "lock.shield").font(.system(size: 11)).foregroundStyle(theme.secondary).help("Asks for your master password").accessibilityLabel("Asks for master password") }
             if !entry.totp.isEmpty { Image(systemName: "clock").font(.system(size: 11)).foregroundStyle(theme.secondary).help("Verification code · " + shortcuts.label(.copyCode)).accessibilityLabel("Has verification code") }
             if entry.favorite { Image(systemName: "star.fill").font(.system(size: 11)).foregroundStyle(accent).accessibilityLabel("Favorite") }
+            if let field = entry.usernameField {
+                Button { model.useVault(entry, { field }, copy: true) } label: { Image(systemName: "person") }
+                    .buttonStyle(PointerButtonStyle()).help("Copy username · " + shortcuts.label(.copyUsername)).accessibilityLabel("Copy username for " + item.title)
+            }
+            if entry.passwordField != nil {
+                Button { model.useVault(entry, { entry.passwordField }, copy: true) } label: { Image(systemName: "ellipsis.rectangle") }
+                    .buttonStyle(PointerButtonStyle()).help("Copy password").accessibilityLabel("Copy password for " + item.title)
+            }
             if model.selected == item.id {
-                if let primary = entry.primary { Text(primary.name).font(.system(size: 11)).foregroundStyle(theme.secondary) }
+                if entry.fillsLogin { Text("Fill").font(.system(size: 11)).foregroundStyle(theme.secondary) }
+                else if let primary = entry.primary { Text(primary.name).font(.system(size: 11)).foregroundStyle(theme.secondary) }
                 Image(systemName: "return").foregroundStyle(accent).font(.system(size: 12))
             }
         })
             .contextMenu {
-                if let primary = entry.primary {
+                if entry.fillsLogin {
+                    Button("Fill username and password") { model.selected = item.id; model.choose() }
+                    Button("Paste password") { model.useVault(entry, { entry.passwordField }) }
+                    Button("Copy password") { model.selected = item.id; model.choose(copy: true) }
+                    Divider()
+                } else if let primary = entry.primary {
                     Button("Paste " + primary.name.lowercased()) { model.selected = item.id; model.choose() }
                     Button("Copy " + primary.name.lowercased()) { model.selected = item.id; model.choose(copy: true) }
                     Divider()
                 }
                 if entry.usernameField != nil { Button("Copy username") { model.useVault(entry, { entry.usernameField }, copy: true) } }
-                if entry.passwordField != nil { Button("Copy password") { model.useVault(entry, { entry.passwordField }, copy: true) } }
+                if entry.passwordField != nil && !entry.fillsLogin { Button("Copy password") { model.useVault(entry, { entry.passwordField }, copy: true) } }
                 if !entry.totp.isEmpty { Button("Copy verification code") { model.useVault(entry, { entry.codeField() }, copy: true) } }
                 if !entry.fields.isEmpty {
                     Menu("Copy field") { ForEach(Array(entry.fields.enumerated()), id: \.offset) { _, field in Button(field.name) { model.useVault(entry, { field }, copy: true) } } }
@@ -574,7 +600,7 @@ struct LauncherView: View {
         case .apps: return "\(shortcuts.label(.nextResult)) Next app    \(shortcuts.label(.pasteResult)) Open    \(shortcuts.label(.copyResult)) Show in Finder"
         case .vault:
             guard vault.state == .unlocked else { return vault.state == .locked ? "\(shortcuts.label(.pasteResult)) Unlock" : "" }
-            return "\(shortcuts.label(.pasteResult)) Paste    \(shortcuts.label(.copyResult)) Copy    \(shortcuts.label(.copyUsername)) Username    \(shortcuts.label(.copyCode)) Code    \(shortcuts.label(.lockVault)) Lock"
+            return "\(shortcuts.label(.pasteResult)) \(model.current?.vault?.fillsLogin == true ? "Fill" : "Paste")    \(shortcuts.label(.copyResult)) Copy    \(shortcuts.label(.copyUsername)) Username    \(shortcuts.label(.copyCode)) Code    \(shortcuts.label(.lockVault)) Lock"
         default: return "\(shortcuts.label(.nextResult)) Next result    \(shortcuts.label(.pasteResult)) Paste    \(shortcuts.label(.saveSnippet)) Save"
         }
     }
