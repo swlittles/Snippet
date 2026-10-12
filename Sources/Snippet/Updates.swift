@@ -13,6 +13,11 @@ final class UpdateService: NSObject, ObservableObject, SPUStandardUserDriverDele
     private var controller: SPUStandardUpdaterController?
     var beforeUserCheck: (() -> Void)?
     var availabilityChanged: (() -> Void)?
+    /// The theme Sparkle's windows are styled with.
+    var palette = ThemePalette.presets[0] { didSet { styled.removeAllObjects() } }
+    private var showingAlert = false
+    private let styled = NSHashTable<NSWindow>.weakObjects()
+    private var windowObserver: NSObjectProtocol?
     let enabled = !AppEnvironment.current.isDevelopment
 
     func start() {
@@ -32,6 +37,14 @@ final class UpdateService: NSObject, ObservableObject, SPUStandardUserDriverDele
             }
         ]
         controller.startUpdater()
+        // Sparkle's windows and alerts appear on their own, so style each one the first time it updates.
+        windowObserver = NotificationCenter.default.addObserver(forName: NSWindow.didUpdateNotification, object: nil, queue: .main) { [weak self] note in
+            guard let self, let window = note.object as? NSWindow, !self.styled.contains(window) else { return }
+            let sparkle = Bundle(for: SPUUpdater.self)
+            guard window.windowController.map({ Bundle(for: type(of: $0)) == sparkle }) == true || (self.showingAlert && window == NSApp.modalWindow) else { return }
+            self.styled.add(window)
+            ThemedIcon.style(window, self.palette)
+        }
     }
     func setAutomaticChecks(_ enabled: Bool) { controller?.updater.automaticallyChecksForUpdates = enabled }
     @objc func checkForUpdates(_ sender: Any? = nil) {
@@ -55,6 +68,8 @@ final class UpdateService: NSObject, ObservableObject, SPUStandardUserDriverDele
         availableVersion = update.displayVersionString
         availabilityChanged?()
     }
+    func standardUserDriverWillShowModalAlert() { showingAlert = true }
+    func standardUserDriverDidShowModalAlert() { showingAlert = false }
     func standardUserDriverWillFinishUpdateSession() {
         availableVersion = nil
         availabilityChanged?()

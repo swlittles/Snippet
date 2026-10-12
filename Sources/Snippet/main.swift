@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import Carbon
+import Combine
 import ApplicationServices
 
 final class LauncherPanel: NSPanel {
@@ -27,6 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     let shortcuts = ShortcutStore()
     let updates = UpdateService()
     var activeGlobal: KeyBinding?
+    var themeObservation: AnyCancellable?
     var clipboard: ClipboardService!
     var expansion: ExpansionService!
     var panel: LauncherPanel!
@@ -108,6 +110,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
             self?.hide(restoreFocus: false)
         }
         updates.availabilityChanged = { [weak self] in self?.configureMenus() }
+        themeObservation = theme.$palette.removeDuplicates().sink { [weak self] palette in
+            ThemedIcon.apply(palette)
+            self?.updates.palette = palette
+        }
         updates.start()
         configureMenus()
         NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp]) { [weak self] event in

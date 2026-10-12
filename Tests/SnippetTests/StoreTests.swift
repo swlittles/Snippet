@@ -471,6 +471,13 @@ final class StoreTests {
         themes.color(\.accent).wrappedValue = Color(hex: 0x123456)
         XCTAssertEqual(themes.palette.accent, 0x123456)
         XCTAssertEqual(ThemeStore(defaults: defaults).palette.name, "Custom")
+        // The themed icon's front card is drawn in the accent color.
+        let icon = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 64, pixelsHigh: 64, bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!.retagging(with: .sRGB)!
+        NSGraphicsContext.saveGraphicsState(); NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: icon)
+        ThemedIcon.image(ThemePalette.presets[2], development: false).draw(in: NSRect(x: 0, y: 0, width: 64, height: 64))
+        NSGraphicsContext.restoreGraphicsState()
+        let card = icon.colorAt(x: 27, y: 35)!
+        XCTAssertEqual([card.redComponent, card.greenComponent, card.blueComponent].map { Int(($0 * 255).rounded()) }, [0x61, 0xD4, 0xF2])
         XCTAssertEqual(LauncherTab.command("1"), .history)
         XCTAssertEqual(LauncherTab.command("2"), .snippets)
         XCTAssertEqual(LauncherTab.command("3"), .calculator)

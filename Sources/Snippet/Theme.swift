@@ -142,3 +142,55 @@ struct ThemeSettingsView: View {
         }.buttonStyle(PointerButtonStyle()).help("Choose " + title.lowercased() + " color")
     }
 }
+
+extension NSColor {
+    convenience init(hex: UInt32) { self.init(srgbRed: CGFloat((hex >> 16) & 255) / 255, green: CGFloat((hex >> 8) & 255) / 255, blue: CGFloat(hex & 255) / 255, alpha: 1) }
+    /// Moves toward another color by a fraction, in sRGB.
+    func mixed(with other: NSColor, _ fraction: CGFloat) -> NSColor { blended(withFraction: fraction, of: other) ?? self }
+}
+
+/// The app icon drawn in the chosen theme's colors, so the updater and alerts match it.
+/// Mirrors the artwork in scripts/make-icon.swift.
+enum ThemedIcon {
+    static func image(_ palette: ThemePalette, development: Bool = AppEnvironment.current.isDevelopment) -> NSImage {
+        let background = NSColor(hex: palette.background), accent = NSColor(hex: palette.accent)
+        return NSImage(size: NSSize(width: 1024, height: 1024), flipped: true) { _ in
+            func rect(_ x: CGFloat, _ y: CGFloat, _ w: CGFloat, _ h: CGFloat, _ radius: CGFloat, _ color: NSColor) {
+                color.setFill()
+                NSBezierPath(roundedRect: NSRect(x: x, y: y, width: w, height: h), xRadius: radius, yRadius: radius).fill()
+            }
+            rect(64, 64, 896, 896, 196, background)
+            rect(360, 144, 496, 576, 96, accent.mixed(with: background, 0.45))
+            rect(200, 288, 496, 576, 96, accent)
+            for (y, w): (CGFloat, CGFloat) in [(480, 256), (588, 192), (696, 128)] { rect(320, y, w, 44, 22, background.mixed(with: accent, 0.12)) }
+            if development {
+                rect(510, 720, 410, 175, 45, NSColor(srgbRed: 1, green: 174 / 255, blue: 64 / 255, alpha: 1))
+                NSString(string: "DEV").draw(at: NSPoint(x: 570, y: 735), withAttributes: [.font: NSFont.boldSystemFont(ofSize: 112), .foregroundColor: NSColor(srgbRed: 33 / 255, green: 26 / 255, blue: 57 / 255, alpha: 1)])
+            }
+            return true
+        }
+    }
+    /// Sparkle and NSAlert look the icon up by name, so the themed image replaces the named application icon.
+    static func apply(_ palette: ThemePalette) {
+        let icon = image(palette)
+        NSImage(named: NSImage.applicationIconName)?.setName(nil)
+        icon.setName(NSImage.applicationIconName)
+        NSApp.applicationIconImage = icon
+    }
+    /// Gives an AppKit window the theme's appearance, background and default-button color.
+    static func style(_ window: NSWindow, _ palette: ThemePalette) {
+        window.appearance = NSAppearance(named: palette.isDark ? .darkAqua : .aqua)
+        window.backgroundColor = NSColor(hex: palette.background)
+        let accent = NSColor(hex: palette.accent)
+        let accentIsLight = ThemePalette(name: "", background: palette.accent, surface: 0, text: 0, secondary: 0, accent: 0, selection: 0).isDark == false
+        func walk(_ view: NSView) {
+            if let box = view as? NSBox, box.boxType == .custom { box.fillColor = NSColor(hex: palette.surface) }
+            if let button = view as? NSButton, button.keyEquivalent == "\r" {
+                button.bezelColor = accent
+                button.attributedTitle = NSAttributedString(string: button.title, attributes: [.foregroundColor: accentIsLight ? NSColor(hex: palette.background) : NSColor.white, .font: button.font ?? NSFont.systemFont(ofSize: NSFont.systemFontSize)])
+            }
+            view.subviews.forEach(walk)
+        }
+        if let content = window.contentView { walk(content) }
+    }
+}

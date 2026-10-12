@@ -1,9 +1,13 @@
 A native macOS clipboard, snippet, and calculator launcher. Requires macOS 13 or newer; one universal app supports Apple Silicon and Intel.
 
-### What’s new in 3.7.0
+### What’s new in 3.7.1
 
-- **Fill sign-in forms from the Vault.** Click into a username field, open the Vault and press Return: Snippet pastes the username, presses Tab and pastes the password. Previously Return pasted only the password, into whichever field was focused.
-- **Copy buttons on every login.** Each vault login now has buttons to copy its username or password individually.
+- **The update window matches your theme.** Check for Updates and its alerts now use your theme’s colors and show the Snippet icon in those colors, instead of the default purple.
+
+### Also in 3.7
+
+- **Fill sign-in forms from the Vault.** Click into a username field, open the Vault and press Return: Snippet pastes the username, presses Tab and pastes the password.
+- **Copy buttons on every login.** Each vault login has buttons to copy its username or password individually.
 
 From 3.3.0 or later, choose **Check for Updates…** to install this release. Versions 3.2.x require one manual upgrade to gain the updater.
 

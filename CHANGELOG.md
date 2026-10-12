@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.7.1
+
+- Match the update window to your theme. Sparkle's update, progress and alert windows now use the theme's light or dark appearance, background and accent, and show the app icon drawn in the theme's colors instead of the default purple.
+
 ## 3.7.0
 
 - Fill sign-in forms from the Vault. Return on a login with a username and password pastes the username, presses Tab and pastes the password, instead of pasting only the password into the focused field. The context menu still offers Paste password.
