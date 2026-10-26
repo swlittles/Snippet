@@ -235,7 +235,7 @@ struct ProcessDetailView: View {
         return (activity.process(process.parent)?.name ?? "PID") + " (\(process.parent))"
     }
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
                 if let icon = activity.icon(process) { Image(nsImage: icon).resizable().scaledToFit().frame(width: 28, height: 28) }
                 else { Image(systemName: "gearshape").font(.system(size: 18)).foregroundStyle(theme.accent).frame(width: 28, height: 28) }
@@ -244,7 +244,7 @@ struct ProcessDetailView: View {
                     Text(process.path.isEmpty ? kind : kind + " · " + process.path).font(.system(size: 10)).foregroundStyle(theme.secondary).lineLimit(1).truncationMode(.middle).textSelection(.enabled)
                 }
             }
-            Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 5) {
+            Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 8) {
                 GridRow {
                     field("PID", String(process.pid)); field(process.processCount > 1 ? "Processes" : "Parent", process.processCount > 1 ? String(process.processCount) : parent)
                     field("User", process.user); field("Started", process.started == .distantPast ? "—" : process.started.formatted(.relative(presentation: .named)))
@@ -260,7 +260,7 @@ struct ProcessDetailView: View {
                     field("Written", process.restricted ? "—" : ActivityFormat.bytes(Double(process.bytesWritten), binary: false))
                 }
             }
-        }.padding(.horizontal, 20).padding(.vertical, 10).frame(maxWidth: .infinity, alignment: .leading)
+        }.padding(.horizontal, 20).padding(.vertical, 14).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
     func field(_ label: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 1) {

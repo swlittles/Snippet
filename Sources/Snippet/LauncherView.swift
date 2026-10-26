@@ -126,6 +126,8 @@ final class LauncherModel: ObservableObject {
         ResultItem(id: process.id, title: process.name, text: process.path, subtitle: "", favorite: false, snippet: nil, process: process)
     }
     var listHeight: CGFloat { tab == .calculator ? 388 : tab == .activity ? 420 : results.isEmpty ? 180 : CGFloat(min(results.count, 5) * 58 + 16) }
+    /// Process details have three rows of figures under a header, so they get more room than a text preview.
+    var previewHeight: CGFloat { tab == .activity ? 176 : 130 }
     var current: ResultItem? { results.first { $0.id == selected } }
     func refresh() {
         results = computeResults()
@@ -384,7 +386,7 @@ struct LauncherView: View {
                     } else if let clip = current.clip, let url = history.imageURL(clip), let image = ImageCache.image(url) {
                         HStack { Image(nsImage: image).resizable().scaledToFit(); ScrollView { Text(current.text).font(.caption).textSelection(.enabled) } }.padding(8)
                     } else { MarkdownPreview(text: current.text) }
-                }.frame(height: 130)
+                }.frame(height: model.previewHeight)
             }
             Divider()
             footer
@@ -446,13 +448,27 @@ struct LauncherView: View {
             if !(model.tab == .vault && vault.state == .locked), !(model.tab == .calculator ? model.expression : model.query).isEmpty { Button { if model.tab == .calculator { model.expression = "" } else { model.query = "" } } label: { Image(systemName: "xmark.circle.fill") }.buttonStyle(PointerButtonStyle()).help("Clear search") }
         }.padding(22)
     }
+    /// Six sections and the toolbar don't always fit: tighten the tabs, then drop their shortcuts, rather than truncate names.
+    /// Whole rows are compared, so each option is measured against the full width.
     var tabs: some View {
+        ViewThatFits(in: .horizontal) {
+            tabRow(padding: 10, spacing: 4, keys: true)
+            tabRow(padding: 6, spacing: 2, keys: true)
+            tabRow(padding: 8, spacing: 2, keys: false)
+        }.padding(.horizontal, 20).padding(.bottom, 12)
+    }
+    func tabRow(padding: CGFloat, spacing: CGFloat, keys: Bool) -> some View {
         HStack(spacing: 6) {
-            ForEach(model.visibleTabs, id: \.self) { tab in
-                Button { model.switchTab(tab) } label: {
-                    Text(tab.rawValue + "  " + shortcuts.label(tab.shortcutAction)).font(.system(size: 12, weight: .medium)).padding(.horizontal, 12).padding(.vertical, 6)
-                        .background((model.tab != .apps && model.tab != .vault && model.tab != .activity && model.query.lowercased().hasPrefix("snip ") ? tab == .snippets : model.tab == tab) ? theme.selection : .clear, in: Capsule())
-                }.buttonStyle(PointerButtonStyle())
+            HStack(spacing: spacing) {
+                ForEach(model.visibleTabs, id: \.self) { tab in
+                    Button { model.switchTab(tab) } label: {
+                        HStack(spacing: keys ? 4 : 0) {
+                            Text(tab.rawValue).font(.system(size: 12, weight: .medium))
+                            if keys { Text(shortcuts.label(tab.shortcutAction)).font(.system(size: 10.5)).foregroundStyle(theme.secondary) }
+                        }.fixedSize().padding(.horizontal, padding).padding(.vertical, 6)
+                            .background((model.tab != .apps && model.tab != .vault && model.tab != .activity && model.query.lowercased().hasPrefix("snip ") ? tab == .snippets : model.tab == tab) ? theme.selection : .clear, in: Capsule())
+                    }.help(tab.rawValue + " · " + shortcuts.label(tab.shortcutAction))
+                }
             }
             if model.tab == .history || model.tab == .snippets {
                 filterButton(.favorites, icon: "star", label: "Favorites only", help: "Show favorites only")
@@ -460,7 +476,7 @@ struct LauncherView: View {
             } else if model.tab == .vault && vault.state == .unlocked {
                 filterButton(.favorites, icon: "star", label: "Favorites only", help: "Show vault favorites only")
             }
-            Spacer()
+            Spacer(minLength: 8)
             Menu {
                 Button("All collections") { model.collectionFilter = "" }
                 ForEach(model.collections, id: \.self) { name in Button(name) { model.collectionFilter = name; model.switchTab(.snippets) } }
@@ -468,7 +484,7 @@ struct LauncherView: View {
             Button { model.openWorkspace() } label: { Image(systemName: "square.grid.2x2") }.help("Workspace · tools, queue, quicklinks, collections, packs and sync")
             Button { model.new() } label: { Image(systemName: "plus") }.help("New snippet · " + shortcuts.label(.newSnippet))
             Button { model.settings = true } label: { Image(systemName: "gearshape") }.help("Settings · " + shortcuts.label(.settings))
-        }.buttonStyle(PointerButtonStyle()).padding(.horizontal, 20).padding(.bottom, 12)
+        }.buttonStyle(PointerButtonStyle())
     }
     func filterButton(_ filter: ResultFilter, icon: String, label: String, help: String) -> some View {
         let on = model.filter == filter

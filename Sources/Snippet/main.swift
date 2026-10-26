@@ -260,7 +260,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     }
     func resizeLauncher() {
         guard panel != nil else { return }
-        let height = model.listHeight + 151 + (model.preview && model.current != nil ? 131 : 0)
+        let height = model.listHeight + 151 + (model.preview && model.current != nil ? model.previewHeight + 1 : 0)
         var frame = panel.frame
         frame.origin.y += frame.height - height
         frame.size = NSSize(width: 680, height: height)

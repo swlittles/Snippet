@@ -1,5 +1,10 @@
 # Changelog
 
+## 3.8.1
+
+- Keep every section tab and its shortcut visible. With Vault and Activity both shown, tab names were cut off and their Command-number shortcuts hidden. Tabs now tighten their spacing first, and drop the shortcut only if a custom shortcut is too long to fit, showing it on hover instead.
+- Give Activity's process details more room, so the last row of figures no longer sits against the footer.
+
 ## 3.8.0
 
 - Add an **Activity** section (Command–6) that replaces Activity Monitor for everyday use. CPU, memory (with pressure and swap), disk and network tiles show recent history. Below them, a table lists every process with % CPU, memory, power, disk, threads and PID. Sort by any column, filter by name, PID or user, and switch between Apps (each app with its helpers summed), My processes and All processes.
