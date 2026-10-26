@@ -1,7 +1,7 @@
 import Foundation
 
 enum LauncherTab: String, CaseIterable {
-    case history = "Clipboard", snippets = "Snippets", calculator = "Calculator", apps = "Apps", vault = "Vault"
+    case history = "Clipboard", snippets = "Snippets", calculator = "Calculator", apps = "Apps", vault = "Vault", activity = "Activity"
     /// Vault appears only once it's turned on in Settings.
     static func visible(vault: Bool) -> [LauncherTab] { vault ? allCases : allCases.filter { $0 != .vault } }
     func cycled(backward: Bool = false, in tabs: [LauncherTab] = allCases) -> LauncherTab {
@@ -16,7 +16,7 @@ enum LauncherTab: String, CaseIterable {
 
 extension LauncherTab {
     var shortcutAction: ShortcutAction {
-        switch self { case .history: return .clipboard; case .snippets: return .snippets; case .calculator: return .calculator; case .apps: return .apps; case .vault: return .vault }
+        switch self { case .history: return .clipboard; case .snippets: return .snippets; case .calculator: return .calculator; case .apps: return .apps; case .vault: return .vault; case .activity: return .activity }
     }
 }
 enum ResultNavigation {

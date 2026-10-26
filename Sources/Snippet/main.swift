@@ -23,12 +23,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     let usage = UsageStore()
     let apps = AppCatalog()
     let vault = VaultStore()
+    let activity = ActivityStore()
     let clickGuard = FollowUpClickGuard()
     lazy var librarySync = LibrarySync(store: store, history: history, workspace: workspace, theme: theme)
     let shortcuts = ShortcutStore()
     let updates = UpdateService()
     var activeGlobal: KeyBinding?
-    var themeObservation: AnyCancellable?
+    var themeObservations: Set<AnyCancellable> = []
     var clipboard: ClipboardService!
     var expansion: ExpansionService!
     var panel: LauncherPanel!
@@ -110,10 +111,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
             self?.hide(restoreFocus: false)
         }
         updates.availabilityChanged = { [weak self] in self?.configureMenus() }
-        themeObservation = theme.$palette.removeDuplicates().sink { [weak self] palette in
+        theme.$palette.removeDuplicates().sink { [weak self] palette in
             ThemedIcon.apply(palette)
             self?.updates.palette = palette
-        }
+        }.store(in: &themeObservations)
+        // The color panel changes the palette continuously; rewrite the bundle's icon once it settles.
+        theme.$palette.removeDuplicates().debounce(for: .seconds(1), scheduler: RunLoop.main).sink { palette in
+            ThemedIcon.applyToBundle(palette)
+        }.store(in: &themeObservations)
         updates.start()
         configureMenus()
         NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp]) { [weak self] event in
@@ -171,7 +176,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         }
         editItem.submenu = edit; main.addItem(editItem)
         let viewItem = NSMenuItem(); let view = NSMenu(title: "View")
-        for action: ShortcutAction in [.clipboard,.snippets,.calculator,.apps,.vault,.workspace,.enqueue,.pasteNext,.nextSection,.previousSection] { view.addItem(menuItem(action)) }
+        for action: ShortcutAction in [.clipboard,.snippets,.calculator,.apps,.vault,.activity,.workspace,.enqueue,.pasteNext,.nextSection,.previousSection] { view.addItem(menuItem(action)) }
         viewItem.submenu = view; main.addItem(viewItem)
         NSApp.mainMenu = main
         let menu = NSMenu()
@@ -247,6 +252,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         model.refresh()
         model.focusToken = UUID()
         resizeLauncher()
+        updateActivitySampling(visible: true)
         // The paste fallback hides the app to hand focus back.
         if NSApp.isHidden { NSApp.unhide(nil) }
         NSApp.activate(ignoringOtherApps: true)
@@ -260,8 +266,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         frame.size = NSSize(width: 680, height: height)
         panel.setFrame(frame, display: true)
     }
+    /// Processes are sampled only while the Activity section is on screen.
+    func updateActivitySampling(visible: Bool? = nil) {
+        if (visible ?? panel?.isVisible == true) && model?.tab == .activity { activity.start() } else { activity.stop() }
+    }
     func hide(restoreFocus: Bool = true) {
         panel.orderOut(nil)
+        activity.stop()
         if restoreFocus && NSApp.isActive, let previousApp { activate(previousApp) }
     }
     /// macOS 14 activation is cooperative: yield to the target, then ask it to come forward.
@@ -274,7 +285,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool { show(); return true }
     func windowDidResignKey(_ notification: Notification) {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-            guard let self, self.trackingStatusMenu == nil, !self.panel.isKeyWindow, self.model.editing == nil, self.model.editingClip == nil, !self.model.settings, !self.model.workspaceOpen, self.model.templateRequest == nil, self.model.vaultReprompt == nil,
+            guard let self, self.trackingStatusMenu == nil, !self.panel.isKeyWindow, self.model.editing == nil, self.model.editingClip == nil, !self.model.settings, !self.model.workspaceOpen, self.model.templateRequest == nil, self.model.vaultReprompt == nil, self.model.quitRequest == nil,
                   NSWorkspace.shared.frontmostApplication?.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return }
             self.hide(restoreFocus: false)
         }

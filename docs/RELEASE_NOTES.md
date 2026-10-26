@@ -1,13 +1,15 @@
 A native macOS clipboard, snippet, and calculator launcher. Requires macOS 13 or newer; one universal app supports Apple Silicon and Intel.
 
-### What’s new in 3.7.1
+### What’s new in 3.8.0
 
-- **The update window matches your theme.** Check for Updates and its alerts now use your theme’s colors and show the Snippet icon in those colors, instead of the default purple.
+- **Activity: see and stop what your Mac is doing.** Press Command–6 for CPU, memory, disk and network at a glance, each with a two-minute history. Below them is a table of every process with % CPU, memory, power, disk, threads and PID. Sort by any column, filter by name, PID or user, and switch between Apps (each app with its helpers added together), My processes and All processes.
+- **Quit stuck apps and processes from the keyboard.** Command–Delete quits the selected process after you confirm, and Option–Command–Delete force quits. Apps get the chance to save first. Processes owned by root ask for an administrator's password. Return shows details such as path, parent, start time and totals.
+- **The app icon matches your theme everywhere.** Finder, Launchpad, Spotlight and System Settings now show Snippet's icon in your theme's colors.
 
 ### Also in 3.7
 
+- **The update window matches your theme.** Check for Updates and its alerts use your theme’s colors.
 - **Fill sign-in forms from the Vault.** Click into a username field, open the Vault and press Return: Snippet pastes the username, presses Tab and pastes the password.
-- **Copy buttons on every login.** Each vault login has buttons to copy its username or password individually.
 
 From 3.3.0 or later, choose **Check for Updates…** to install this release. Versions 3.2.x require one manual upgrade to gain the updater.
 

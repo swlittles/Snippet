@@ -177,6 +177,25 @@ enum ThemedIcon {
         icon.setName(NSImage.applicationIconName)
         NSApp.applicationIconImage = icon
     }
+    private static let bundleQueue = DispatchQueue(label: "Snippet.bundle-icon", qos: .utility)
+    /// The colors and build the bundle's custom icon was drawn for.
+    static func bundleIconKey(_ palette: ThemePalette, development: Bool = AppEnvironment.current.isDevelopment) -> String {
+        String(format: "%06X-%06X", palette.background, palette.accent) + (development ? "-dev" : "")
+    }
+    /// Finder, Launchpad, Spotlight and System Settings read the icon from the bundle on disk, and a
+    /// menu-bar app has no Dock tile, so the themed icon is written into the bundle as its custom icon.
+    /// That adds an `Icon\r` file at the bundle root: the code seal and designated requirement are
+    /// unchanged and Gatekeeper still accepts the app; only `codesign --strict` reports the file.
+    /// An update replaces the bundle, so the key is checked against the file before skipping.
+    static func applyToBundle(_ palette: ThemePalette, bundle: URL = Bundle.main.bundleURL, defaults: UserDefaults = AppEnvironment.defaults) {
+        guard bundle.pathExtension == "app" else { return }
+        let key = bundleIconKey(palette), marker = bundle.appendingPathComponent("Icon\r")
+        if defaults.string(forKey: "bundleIconKey") == key, FileManager.default.fileExists(atPath: marker.path) { return }
+        bundleQueue.async {
+            guard NSWorkspace.shared.setIcon(image(palette), forFile: bundle.path, options: []) else { return }
+            DispatchQueue.main.async { defaults.set(key, forKey: "bundleIconKey") }
+        }
+    }
     /// Gives an AppKit window the theme's appearance, background and default-button color.
     static func style(_ window: NSWindow, _ palette: ThemePalette) {
         window.appearance = NSAppearance(named: palette.isDark ? .darkAqua : .aqua)

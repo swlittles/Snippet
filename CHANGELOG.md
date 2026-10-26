@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.8.0
+
+- Add an **Activity** section (Command–6) that replaces Activity Monitor for everyday use. CPU, memory (with pressure and swap), disk and network tiles show recent history. Below them, a table lists every process with % CPU, memory, power, disk, threads and PID. Sort by any column, filter by name, PID or user, and switch between Apps (each app with its helpers summed), My processes and All processes.
+- Quit or force quit the selected process with Command–Delete or Option–Command–Delete. Apps are asked to quit as with Command–Q. Processes owned by root or another user ask for an administrator's password. Return shows details: path, parent, user, start time, CPU time, memory and disk totals.
+- Fix the app icon in Finder, Launchpad, Spotlight and System Settings not matching your theme. The themed icon is now written into the app bundle as its custom icon. It's rewritten when the theme changes and after an update replaces the bundle.
+
 ## 3.7.1
 
 - Match the update window to your theme. Sparkle's update, progress and alert windows now use the theme's light or dark appearance, background and accent, and show the app icon drawn in the theme's colors instead of the default purple.

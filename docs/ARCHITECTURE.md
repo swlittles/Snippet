@@ -14,6 +14,8 @@ Snippet is a Swift Package executable targeting macOS 13+. AppKit owns app lifec
 | `Services.swift` | Clipboard polling and text-vs-image choice, sensitive-type exclusions, Command–V posting, double-click guard, Accessibility-gated keyword event tap |
 | `Usage.swift` | Decaying use scores for the Frequent filter and app ranking |
 | `Apps.swift` | Background scan of app folders, name matching and ranking, icons |
+| `Activity.swift` | Process table and system counters, per-process rates, app grouping, filtering, sorting, quitting |
+| `ActivityView.swift` | Activity tiles, sparklines, process table, details and quit confirmation |
 | `Shortcuts.swift` | Bindings, contextual conflict validation, persistence, recording, settings UI |
 | `Navigation.swift` | Section cycling and result navigation |
 | `Calculator.swift` | Tokenizer/parser, numeric evaluation, calculation persistence |
@@ -42,6 +44,21 @@ If permission or activation fails, the text remains copied and the UI explains t
 `~/Library/Application Support/Snippet/` stores `snippets.json`, `history.json`, `calculations.json`, `usage.json`, `workspace.json`, `sync-journal.json`, the optional encrypted `vault-cache.json`, and the `Images/` attachment directory. Writes are atomic and files use mode 0600. A read or save error blocks subsequent writes through that store and is surfaced in the UI; unreadable originals are preserved. Settings, shortcuts, and themes use UserDefaults.
 
 Clip decoding treats a missing `favorite` field as false for older history files. Clip edits retain identity/source/date; they validate non-empty content and the capture size limit. Editor drafts are value types and aren't persisted on Cancel. Unfavoriting doesn't reset a clip's age, so normal pruning can subsequently remove it.
+
+## Activity
+
+`ActivityStore` samples every two seconds, only while the Activity section is visible. Each sample runs on a utility queue and has these parts:
+
+- `sysctl(KERN_PROC_ALL)` lists every process with its PID, parent, user and start time.
+- `proc_pid_rusage` gives CPU time, memory footprint, disk bytes and the kernel's energy estimate. Successive samples turn these into CPU %, disk rates and watts.
+- For processes owned by other users, which unprivileged apps can't read, the setuid `/bin/ps` supplies CPU time and resident size.
+- System CPU comes from host CPU ticks and memory from VM statistics, using Activity Monitor's app + wired + compressed breakdown. Pressure comes from `kern.memorystatus_vm_pressure_level`, network from 64-bit interface counters, and disk from IOBlockStorageDriver statistics.
+
+Opening the section resets the baseline, so rates never span time it was closed. The Apps view groups processes by their outermost `.app` bundle under each running application. Quit uses `NSRunningApplication.terminate` for apps and SIGTERM/SIGKILL otherwise. EPERM, or a process owned by another user, goes through `osascript … with administrator privileges`.
+
+## App icon
+
+Snippet is an accessory app with no Dock tile, so Finder, Launchpad and System Settings read its icon from the bundle. `ThemedIcon.applyToBundle` draws the icon in the theme's colors and sets it as the bundle's custom icon (an `Icon\r` file plus Finder info). This leaves the code seal and designated requirement intact, so Gatekeeper and Accessibility grants are unaffected; only `codesign --strict` reports the file. The applied colors are stored and rechecked against the file at launch, because an update replaces the bundle.
 
 ## Keyboard contexts
 

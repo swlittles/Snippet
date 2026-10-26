@@ -15,6 +15,7 @@ struct ResultItem: Identifiable {
     var clip: Clip? = nil
     var app: AppEntry? = nil
     var vault: VaultItem? = nil
+    var process: ProcessEntry? = nil
     var usageKey = ""
     var frequent = false
     var uses = 0
@@ -45,7 +46,7 @@ final class LauncherModel: ObservableObject {
     let calculator: CalculatorStore
     unowned let app: AppDelegate
     @Published var query = "" { didSet { selected = nil; refresh() } }
-    @Published var tab: LauncherTab = .history { didSet { selected = nil; refresh(); focusToken = UUID(); app.resizeLauncher() } }
+    @Published var tab: LauncherTab = .history { didSet { selected = nil; if tab == .activity || oldValue == .activity { preview = false }; refresh(); focusToken = UUID(); app.resizeLauncher(); app.updateActivitySampling() } }
     @Published var expression = "" { didSet { calcError = nil; calcResult = nil; calcDisplay = nil } }
     @Published var calcDisplay: String?
     @Published var calcResult: Double?
@@ -68,6 +69,7 @@ final class LauncherModel: ObservableObject {
     @Published var workspaceOpen = false
     @Published var workspaceSection = 0
     @Published var templateRequest: TemplateRequest?
+    @Published var quitRequest: ProcessQuitRequest?
     @Published var collectionFilter = "" { didSet { refresh() } }
     var collections: [String] { Array(Set(app.workspace.data.collections + store.items.compactMap(\.collection).filter { !$0.isEmpty })).sorted() }
     func openWorkspace(_ section: Int = 0) { workspaceSection = section; workspaceOpen = true }
@@ -78,12 +80,15 @@ final class LauncherModel: ObservableObject {
         self.store = store; self.history = history; self.calculator = calculator; self.app = app
         // @Published emits before the value changes; hop to the next turn so refresh reads the new list.
         app.apps.$apps.dropFirst().receive(on: DispatchQueue.main).sink { [weak self] _ in self?.refresh() }.store(in: &subscriptions)
+        // Each sample, scope or sort change rebuilds the process list.
+        app.activity.objectWillChange.receive(on: DispatchQueue.main).sink { [weak self] _ in if self?.tab == .activity { self?.refresh() } }.store(in: &subscriptions)
         app.vault.$items.dropFirst().receive(on: DispatchQueue.main).sink { [weak self] _ in self?.refresh() }.store(in: &subscriptions)
         // Locking and unlocking swap the search field for the password field; keep keyboard focus there.
         app.vault.$state.dropFirst().removeDuplicates().receive(on: DispatchQueue.main).sink { [weak self] _ in self?.message = ""; self?.refresh(); self?.focusToken = UUID() }.store(in: &subscriptions)
     }
     private func computeResults() -> [ResultItem] {
         if tab == .calculator { return [] }
+        if tab == .activity { return app.activity.list(query: query).map(processResult) }
         if tab == .vault { return app.vault.state == .unlocked ? app.vault.search(query, favorites: filter == .favorites).map(vaultResult) : [] }
         let usage = app.usage, now = Date()
         if tab == .apps { return app.apps.search(query, usage: usage).map(appResult) }
@@ -117,7 +122,10 @@ final class LauncherModel: ObservableObject {
     private func appResult(_ entry: AppEntry) -> ResultItem {
         ResultItem(id: entry.id, title: entry.name, text: entry.url.path, subtitle: entry.location, favorite: false, snippet: nil, app: entry, usageKey: entry.usageKey)
     }
-    var listHeight: CGFloat { tab == .calculator ? 388 : results.isEmpty ? 180 : CGFloat(min(results.count, 5) * 58 + 16) }
+    private func processResult(_ process: ProcessEntry) -> ResultItem {
+        ResultItem(id: process.id, title: process.name, text: process.path, subtitle: "", favorite: false, snippet: nil, process: process)
+    }
+    var listHeight: CGFloat { tab == .calculator ? 388 : tab == .activity ? 420 : results.isEmpty ? 180 : CGFloat(min(results.count, 5) * 58 + 16) }
     var current: ResultItem? { results.first { $0.id == selected } }
     func refresh() {
         results = computeResults()
@@ -127,16 +135,16 @@ final class LauncherModel: ObservableObject {
     var visibleTabs: [LauncherTab] { LauncherTab.visible(vault: app.vault.enabled) }
     func openSettings(section: Int) { settingsSection = section; settings = true }
     func saveSelection() {
-        guard let current, current.app == nil, current.vault == nil else { return }
+        guard let current, current.app == nil, current.vault == nil, current.process == nil else { return }
         editing = current.snippet ?? SnippetItem(title: current.title, text: current.text, tags: "")
     }
     func editSelection() {
-        guard let current, current.app == nil, current.vault == nil else { return }
+        guard let current, current.app == nil, current.vault == nil, current.process == nil else { return }
         if let snippet = current.snippet { editing = snippet }
         else { editingClip = history.clips.first { $0.id == current.id } }
     }
     func toggleFavorite(_ item: ResultItem) {
-        guard item.app == nil, item.vault == nil else { return }
+        guard item.app == nil, item.vault == nil, item.process == nil else { return }
         if var snippet = item.snippet { snippet.favorite.toggle(); store.save(snippet) }
         else { history.toggleFavorite(item.id) }
         refresh()
@@ -153,6 +161,13 @@ final class LauncherModel: ObservableObject {
             if copy { app.reveal(entry) } else { app.open(entry) }
             return
         }
+        // Return shows a process's details; Command–Return shows its executable in Finder.
+        if let process = current.process {
+            if !copy { preview.toggle() }
+            else if process.path.isEmpty { message = "\(process.name) has no file to show." }
+            else { app.hide(restoreFocus: false); NSWorkspace.shared.activateFileViewerSelecting([process.bundle ?? URL(fileURLWithPath: process.path)]) }
+            return
+        }
         app.usage.record(current.usageKey)
         if !textOnly, let clip = current.clip, let url = history.imageURL(clip) {
             do { app.pasteText(current.text, copyOnly: copy, image: try Data(contentsOf: url)) }
@@ -167,7 +182,7 @@ final class LauncherModel: ObservableObject {
         }
     }
     func enqueue() {
-        guard let current, current.app == nil, current.vault == nil else { return }
+        guard let current, current.app == nil, current.vault == nil, current.process == nil else { return }
         do {
             let image = try current.clip.flatMap { history.imageURL($0) }.map { try Data(contentsOf: $0) }
             if app.workspace.update({ $0.queue.append(QueueEntry(title: current.title, text: current.text, image: image, template: current.snippet != nil)) }) { message = "Added to queue · \(app.workspace.data.queue.count) items" }
@@ -181,6 +196,30 @@ final class LauncherModel: ObservableObject {
         let expanded = entry.template == true ? SnippetTemplate.expand(entry.text, clipboard: NSPasteboard.general.string(forType: .string) ?? "") : ExpandedTemplate(text: entry.text, cursorMoves: 0)
         app.pasteText(expanded.text, copyOnly: false, image: entry.image, cursorMoves: expanded.cursorMoves) { [weak self] in
             self?.app.workspace.update { $0.queue.removeAll { $0.id == entry.id } }
+        }
+    }
+    func requestQuit(_ process: ProcessEntry, force: Bool) {
+        if let reason = ActivityList.protectedReason(process) { message = reason; return }
+        quitRequest = ProcessQuitRequest(process: process, force: force)
+    }
+    /// Processes owned by another user need an administrator's approval.
+    func quit(_ process: ProcessEntry, force: Bool) {
+        let name = process.name
+        func asAdministrator() {
+            message = "Waiting for administrator approval to quit \(name)…"
+            app.activity.quitAsAdministrator(process, force: force) { [weak self] error in
+                guard let self else { return }
+                guard let error else { self.message = ""; return }
+                // The password prompt takes focus, which dismisses the launcher.
+                if !self.app.panel.isVisible { self.app.show() }
+                self.message = error
+            }
+        }
+        if process.uid != getuid() { asAdministrator(); return }
+        switch app.activity.quit(process, force: force) {
+        case .sent: message = force ? "Force quit \(name)" : process.isApp ? "Asked \(name) to quit" : "Sent \(name) a request to quit"
+        case .needsAdministrator: asAdministrator()
+        case .failed(let error): message = error
         }
     }
     func switchTab(_ target: LauncherTab) {
@@ -251,7 +290,7 @@ final class LauncherModel: ObservableObject {
         let next = ResultNavigation.index(current: current, count: list.count, backward: backward, wraps: wraps)
         selected = list[next].id
     }
-    var shortcutContext: ShortcutContext { (editing != nil || editingClip != nil || templateRequest != nil || vaultReprompt != nil) ? .editor : (settings || workspaceOpen) ? .settings : tab == .calculator ? .calculator : .launcher }
+    var shortcutContext: ShortcutContext { (editing != nil || editingClip != nil || templateRequest != nil || vaultReprompt != nil || quitRequest != nil) ? .editor : (settings || workspaceOpen) ? .settings : tab == .calculator ? .calculator : .launcher }
     func handle(_ event: NSEvent) -> Bool {
         guard let action = app.shortcuts.match(event, in: shortcutContext) else { return false }
         return perform(action)
@@ -267,6 +306,10 @@ final class LauncherModel: ObservableObject {
         case .snippets: switchTab(.snippets)
         case .calculator: switchTab(.calculator)
         case .apps: switchTab(.apps)
+        case .activity: switchTab(.activity)
+        case .quitProcess, .forceQuitProcess:
+            guard tab == .activity, let process = current?.process else { return false }
+            requestQuit(process, force: action == .forceQuitProcess)
         case .vault:
             guard app.vault.enabled else { return false }
             switchTab(.vault)
@@ -296,7 +339,7 @@ final class LauncherModel: ObservableObject {
         case .close: app.hide()
         case .calculate, .calculateEquals: calculate()
         case .copyCalculation: copyCalculation()
-        case .cancelEditor: editing = nil; editingClip = nil; templateRequest = nil; vaultReprompt = nil
+        case .cancelEditor: editing = nil; editingClip = nil; templateRequest = nil; vaultReprompt = nil; quitRequest = nil
         case .closeSettings: settings = false; workspaceOpen = false
         case .quit: app.quit()
         // SwiftUI handles the editor's draft; AppKit handles text editing through the responder chain.
@@ -329,11 +372,14 @@ struct LauncherView: View {
                 Text(vault.message).font(.system(size: 12)).foregroundStyle(.orange).padding(.horizontal, 20).padding(.vertical, 8).frame(maxWidth: .infinity, alignment: .leading)
             }
             if model.tab == .calculator { CalculatorView(model: model, calculator: model.calculator) }
+            else if model.tab == .activity { ActivityView(model: model, activity: model.app.activity) }
             else if model.results.isEmpty { if model.tab == .vault { vaultEmptyState } else { emptyState } } else { resultList }
             if model.preview, let current = model.current {
                 Divider()
                 Group {
-                    if let item = current.vault {
+                    if let process = current.process {
+                        ProcessDetailView(process: process, activity: model.app.activity)
+                    } else if let item = current.vault {
                         VaultDetailView(item: item) { field in model.useVault(item, field, copy: true, keepOpen: true) }
                     } else if let clip = current.clip, let url = history.imageURL(clip), let image = ImageCache.image(url) {
                         HStack { Image(nsImage: image).resizable().scaledToFit(); ScrollView { Text(current.text).font(.caption).textSelection(.enabled) } }.padding(8)
@@ -364,6 +410,11 @@ struct LauncherView: View {
         .sheet(isPresented: $model.settings, onDismiss: { searchFocused = true }) { SettingsView(history: history, expansion: model.app.expansion, app: model.app) }
         .sheet(item: $model.vaultReprompt, onDismiss: { searchFocused = true }) { request in VaultRepromptView(request: request, vault: vault) }
         .sheet(isPresented: $model.workspaceOpen) { WorkspaceView(model: model, workspace: model.app.workspace, store: store, sync: model.app.librarySync) }
+        .alert(model.quitRequest.map { ($0.force ? "Force quit “" : "Quit “") + $0.process.name + "”?" } ?? "", isPresented: Binding(get: { model.quitRequest != nil }, set: { if !$0 { model.quitRequest = nil } }), presenting: model.quitRequest) { request in
+            if !request.force { Button("Quit") { model.quit(request.process, force: false) } }
+            Button("Force Quit", role: .destructive) { model.quit(request.process, force: true) }
+            Button("Cancel", role: .cancel) {}
+        } message: { request in Text(request.message) }
         .sheet(item: $model.templateRequest) { request in
             TemplateView(request: request) { value, formatted in
                 model.app.pasteText(value.text, copyOnly: request.copyOnly, cursorMoves: value.cursorMoves, formatted: formatted) {
@@ -376,6 +427,7 @@ struct LauncherView: View {
         switch model.tab {
         case .calculator: return "Calculate…  e.g. (24 + 18) / 6"
         case .apps: return "Search apps…"
+        case .activity: return "Filter by name, PID or user…"
         case .vault: return vault.state == .locked ? "Master password" : "Search your vault…"
         default: return "Search copied text, apps, or type snip…"
         }
@@ -389,7 +441,7 @@ struct LauncherView: View {
             if model.tab == .vault && vault.state == .locked {
                 SecureField(placeholder, text: $model.vaultPassword).textFieldStyle(.plain).font(.system(size: 24)).focused($searchFocused).accessibilityLabel("Master password").id(model.vaultFieldID)
             } else {
-                TextField(placeholder, text: model.tab == .calculator ? $model.expression : $model.query).textFieldStyle(.plain).font(.system(size: 24)).focused($searchFocused).accessibilityLabel(model.tab == .calculator ? "Calculator expression" : model.tab == .apps ? "Search apps" : model.tab == .vault ? "Search vault" : "Search clipboard and snippets")
+                TextField(placeholder, text: model.tab == .calculator ? $model.expression : $model.query).textFieldStyle(.plain).font(.system(size: 24)).focused($searchFocused).accessibilityLabel(model.tab == .calculator ? "Calculator expression" : model.tab == .apps ? "Search apps" : model.tab == .activity ? "Filter processes" : model.tab == .vault ? "Search vault" : "Search clipboard and snippets")
             }
             if !(model.tab == .vault && vault.state == .locked), !(model.tab == .calculator ? model.expression : model.query).isEmpty { Button { if model.tab == .calculator { model.expression = "" } else { model.query = "" } } label: { Image(systemName: "xmark.circle.fill") }.buttonStyle(PointerButtonStyle()).help("Clear search") }
         }.padding(22)
@@ -399,7 +451,7 @@ struct LauncherView: View {
             ForEach(model.visibleTabs, id: \.self) { tab in
                 Button { model.switchTab(tab) } label: {
                     Text(tab.rawValue + "  " + shortcuts.label(tab.shortcutAction)).font(.system(size: 12, weight: .medium)).padding(.horizontal, 12).padding(.vertical, 6)
-                        .background((model.tab != .apps && model.tab != .vault && model.query.lowercased().hasPrefix("snip ") ? tab == .snippets : model.tab == tab) ? theme.selection : .clear, in: Capsule())
+                        .background((model.tab != .apps && model.tab != .vault && model.tab != .activity && model.query.lowercased().hasPrefix("snip ") ? tab == .snippets : model.tab == tab) ? theme.selection : .clear, in: Capsule())
                 }.buttonStyle(PointerButtonStyle())
             }
             if model.tab == .history || model.tab == .snippets {
@@ -598,6 +650,7 @@ struct LauncherView: View {
         switch model.tab {
         case .calculator: return "\(shortcuts.label(.calculate)) Calculate    \(shortcuts.label(.copyCalculation)) Copy result"
         case .apps: return "\(shortcuts.label(.nextResult)) Next app    \(shortcuts.label(.pasteResult)) Open    \(shortcuts.label(.copyResult)) Show in Finder"
+        case .activity: return "\(shortcuts.label(.pasteResult)) Details    \(shortcuts.label(.copyResult)) Show in Finder    \(shortcuts.label(.quitProcess)) Quit    \(shortcuts.label(.forceQuitProcess)) Force quit"
         case .vault:
             guard vault.state == .unlocked else { return vault.state == .locked ? "\(shortcuts.label(.pasteResult)) Unlock" : "" }
             return "\(shortcuts.label(.pasteResult)) \(model.current?.vault?.fillsLogin == true ? "Fill" : "Paste")    \(shortcuts.label(.copyResult)) Copy    \(shortcuts.label(.copyUsername)) Username    \(shortcuts.label(.copyCode)) Code    \(shortcuts.label(.lockVault)) Lock"
@@ -613,11 +666,14 @@ struct LauncherView: View {
             if model.tab == .history || model.tab == .snippets {
                 Button { model.openWorkspace(1) } label: { Image(systemName: "text.badge.plus") }.help("Paste queue")
                 Button { model.preview.toggle() } label: { Image(systemName: "eye") }.help("Preview · " + shortcuts.label(.preview))
+            } else if model.tab == .activity {
+                Button { if let process = model.current?.process { model.requestQuit(process, force: false) } } label: { Image(systemName: "xmark.octagon") }.disabled(model.current == nil).help("Quit process · " + shortcuts.label(.quitProcess))
+                Button { model.preview.toggle() } label: { Image(systemName: "info.circle") }.help("Details · " + shortcuts.label(.pasteResult))
             } else if model.tab == .vault && vault.state == .unlocked {
                 Button { vault.lock() } label: { Image(systemName: "lock") }.help("Lock vault · " + shortcuts.label(.lockVault))
                 Button { model.preview.toggle() } label: { Image(systemName: "eye") }.help("Details · " + shortcuts.label(.preview))
             }
-            if model.tab != .calculator && !(model.tab == .vault && vault.state != .unlocked) { Button(model.current?.app == nil ? "Copy" : "Show in Finder") { model.choose(copy: true) }.disabled(model.current == nil) }
+            if model.tab != .calculator && !(model.tab == .vault && vault.state != .unlocked) { Button(model.current?.app == nil && model.current?.process == nil ? "Copy" : "Show in Finder") { model.choose(copy: true) }.disabled(model.current == nil) }
         }.buttonStyle(PointerButtonStyle()).font(.system(size: 10)).padding(.horizontal, 20).frame(height: 38)
     }
 }
@@ -664,7 +720,7 @@ struct SettingsView: View {
                 Button { app.accessibility() } label: { Label("Enable Accessibility…", systemImage: "arrow.up.right.square").foregroundStyle(theme.accent).underline() }.buttonStyle(PointerButtonStyle()).help("Open macOS Accessibility settings")
             }
             Divider()
-            Text("\(shortcuts.label(.toggle)) opens Snippet. \(shortcuts.label(.clipboard)) Clipboard · \(shortcuts.label(.snippets)) Snippets · \(shortcuts.label(.calculator)) Calculator · \(shortcuts.label(.apps)) Apps. \(shortcuts.label(.nextResult)) / \(shortcuts.label(.previousResult)) moves through results. Customize every command in Shortcuts.").font(.caption).foregroundStyle(theme.secondary).fixedSize(horizontal: false, vertical: true)
+            Text("\(shortcuts.label(.toggle)) opens Snippet. \(shortcuts.label(.clipboard)) Clipboard · \(shortcuts.label(.snippets)) Snippets · \(shortcuts.label(.calculator)) Calculator · \(shortcuts.label(.apps)) Apps · \(shortcuts.label(.activity)) Activity. \(shortcuts.label(.nextResult)) / \(shortcuts.label(.previousResult)) moves through results. Customize every command in Shortcuts.").font(.caption).foregroundStyle(theme.secondary).fixedSize(horizontal: false, vertical: true)
         }
     }
 }

@@ -20,7 +20,20 @@ open "dist/Snippet Dev.app"
 5. Press **Command–2** for saved snippets, or type `snip ` followed by a title or keyword.
 6. Press **Command–4** for apps. Type part of a name (`saf`), word starts (`sys set`) or initials (`vsc`) and press **Return** to open it; **Command–Return** shows it in Finder. From Clipboard or Snippets, matching apps are listed after your text, so Return opens the app when nothing else matches.
 
-Other controls: **Command–Return** copies and closes; **Command–1 / 2 / 3 / 4** switches to Clipboard / Snippets / Calculator / Apps; **Tab / Shift–Tab** selects the next/previous result within Clipboard or Snippets (wrapping at the ends); **Command–N** creates a snippet; **Command–E** edits the selected clip or snippet in place; **Command–Shift–F** toggles its favorite status; **Command–P** toggles the full-text preview; **Command–comma** opens settings; **Escape** dismisses. Click a result to paste it (the same as Return); right-click for copy, save, or removal. Clicking outside dismisses the launcher.
+Other controls: **Command–Return** copies and closes; **Command–1 / 2 / 3 / 4 / 6** switches to Clipboard / Snippets / Calculator / Apps / Activity; **Tab / Shift–Tab** selects the next/previous result within Clipboard or Snippets (wrapping at the ends); **Command–N** creates a snippet; **Command–E** edits the selected clip or snippet in place; **Command–Shift–F** toggles its favorite status; **Command–P** toggles the full-text preview; **Command–comma** opens settings; **Escape** dismisses. Click a result to paste it (the same as Return); right-click for copy, save, or removal. Clicking outside dismisses the launcher.
+
+## Activity
+
+Press **Command–6** for a live view of what your Mac is doing, in place of Activity Monitor. Four tiles show CPU (user and system), memory used with memory pressure and swap, disk read/write and network in/out. Each has a sparkline of the last two minutes; hover a tile for its peak and average. Statistics are sampled every two seconds, and only while the section is on screen.
+
+The table lists processes with % CPU (of one core, so a busy process can exceed 100), memory, power, disk activity, threads and PID. Click a column heading to sort by it; click again to reverse. Type to filter by name, an exact PID or a user name such as `root`. **Apps** shows each running app with its helper processes added together (the small number after the name counts them). **My processes** and **All processes** list processes individually.
+
+Processes owned by root or another user show their user name. For those, macOS only lets Snippet read CPU time and resident memory (through `ps`), so power, disk and threads show a dash.
+
+- **Return** or double-click shows details: path, PID, parent, user, start time, CPU time, threads, power, memory and disk totals.
+- **Command–Delete** quits the selected process after you confirm. Apps are asked to quit as with Command–Q, so they can offer to save; other processes are sent a termination signal. **Option–Command–Delete** force quits.
+- Quitting a process owned by another user asks for an administrator's password. Snippet, `kernel_task` and `launchd` can't be quit from here.
+- **Command–Return** shows the process's app or executable in Finder. Right-click for Bring to front, Copy PID and Copy path.
 
 ## Favorites and editing
 

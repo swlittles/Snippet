@@ -44,7 +44,8 @@ A ZIP and SHA-256 checksums accompany each release. See [installation, updates, 
 | Default shortcut | Action |
 | --- | --- |
 | Option–Space | Open or close Snippet |
-| Cmd–1 / Cmd–2 / Cmd–3 / Cmd–4 | Clipboard / Snippets / Calculator / Apps |
+| Cmd–1 / Cmd–2 / Cmd–3 / Cmd–4 / Cmd–6 | Clipboard / Snippets / Calculator / Apps / Activity |
+| Cmd–Delete / Option–Cmd–Delete | Quit / force quit the selected process in Activity |
 | Tab / Shift–Tab | Next / previous result, wrapping |
 | Return or click | Paste the selected result, or open the selected app |
 | Cmd–Return | Copy the selected result |

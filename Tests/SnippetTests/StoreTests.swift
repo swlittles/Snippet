@@ -36,9 +36,80 @@ final class StoreTests {
         tests.testMenuTrackingSessions()
         tests.testUsageFrecency()
         try tests.testAppSearch()
+        try tests.testActivity()
         try tests.testVaultCrypto()
         try await tests.testVaultSession()
-        print("Passed 25 test groups: persistence, search, corruption, migration, history, expansion, capture, calculator, calculation history, themes/navigation, configurable shortcuts, result cycling, usage, app search, vault crypto, vault session")
+        print("Passed 26 test groups: persistence, search, corruption, migration, history, expansion, capture, calculator, calculation history, themes/navigation, configurable shortcuts, result cycling, usage, app search, activity, vault crypto, vault session")
+    }
+    func testActivity() throws {
+        func process(_ pid: pid_t, _ name: String, path: String = "", uid: uid_t = 501, cpu: Double = 0, memory: UInt64 = 0, app: Bool = false) -> ProcessEntry {
+            var entry = ProcessEntry(id: UUID(), pid: pid, name: name)
+            entry.path = path; entry.uid = uid; entry.user = uid == 0 ? "root" : "ada"; entry.cpu = cpu; entry.memory = memory; entry.isApp = app
+            entry.bundle = ActivityList.outermostApp(path); entry.threads = 2; entry.power = 0.5
+            return entry
+        }
+        XCTAssertEqual(ActivityList.outermostApp("/Applications/Web.app/Contents/Frameworks/W.framework/Helpers/Web Helper.app/Contents/MacOS/Web Helper")?.path, "/Applications/Web.app")
+        XCTAssertEqual(ActivityList.outermostApp("/usr/libexec/logd"), nil)
+        let web = process(100, "Web", path: "/Applications/Web.app/Contents/MacOS/Web", cpu: 10, memory: 100, app: true)
+        let helper = process(101, "Web Helper (Renderer)", path: "/Applications/Web.app/Contents/Frameworks/Helper.app/Contents/MacOS/Web Helper", cpu: 30, memory: 300)
+        let logd = process(50, "logd", path: "/usr/libexec/logd", uid: 0, cpu: 5, memory: 50)
+        let notes = process(200, "Notes", path: "/System/Applications/Notes.app/Contents/MacOS/Notes", cpu: 1, memory: 900, app: true)
+        let all = [web, helper, logd, notes]
+        let apps = ActivityList.list(all, scope: .apps, query: "", sort: .cpu, ascending: false)
+        XCTAssertEqual(apps.map(\.name), ["Web", "Notes"])
+        XCTAssertEqual(apps[0].cpu, 40); XCTAssertEqual(apps[0].memory, 400); XCTAssertEqual(apps[0].processCount, 2)
+        XCTAssertEqual(apps[0].threads, 4); XCTAssertEqual(apps[0].power, 1)
+        XCTAssertEqual(ActivityList.list(all, scope: .all, query: "", sort: .memory, ascending: false).map(\.pid), [200, 101, 100, 50])
+        XCTAssertEqual(ActivityList.list(all, scope: .all, query: "", sort: .name, ascending: true).map(\.name), ["logd", "Notes", "Web", "Web Helper (Renderer)"])
+        XCTAssertEqual(ActivityList.list(all, scope: .all, query: "", sort: .name, ascending: false).first?.name, "Web Helper (Renderer)")
+        XCTAssertEqual(ActivityList.list(all, scope: .mine, query: "", sort: .pid, ascending: true, uid: 501).map(\.pid), [100, 101, 200])
+        XCTAssertEqual(ActivityList.list(all, scope: .all, query: "web", sort: .pid, ascending: true).map(\.pid), [100, 101])
+        XCTAssertEqual(ActivityList.list(all, scope: .all, query: "50", sort: .pid, ascending: true).map(\.pid), [50])
+        XCTAssertEqual(ActivityList.list(all, scope: .all, query: "root", sort: .pid, ascending: true).map(\.pid), [50])
+        XCTAssertEqual(ActivityList.psTime("0:01.50"), 1.5)
+        XCTAssertEqual(ActivityList.psTime("123:04.00"), 7384)
+        XCTAssertEqual(ActivityList.psTime("1-02:00:00.00"), 93_600)
+        let parsed = ActivityList.parsePS("    1   0:12.34  22336\n  bad line\n  343   1:00.00   100\n")
+        XCTAssertEqual(parsed[1]?.cpu, 12.34); XCTAssertEqual(parsed[1]?.resident, 22336 * 1024); XCTAssertEqual(parsed[343]?.cpu, 60); XCTAssertEqual(parsed.count, 2)
+        XCTAssertEqual(ActivityList.cpuPercent(previous: 1, current: 2, elapsed: 2), 50)
+        XCTAssertEqual(ActivityList.cpuPercent(previous: 2, current: 1, elapsed: 2), 0)
+        let started = timeval(tv_sec: 1_700_000_000, tv_usec: 5)
+        XCTAssertEqual(ActivityList.identifier(pid: 7, started: started), ActivityList.identifier(pid: 7, started: started))
+        XCTAssertFalse(ActivityList.identifier(pid: 7, started: started) == ActivityList.identifier(pid: 8, started: started))
+        XCTAssertNotNil(ActivityList.protectedReason(process(getpid(), "Snippet")))
+        XCTAssertNotNil(ActivityList.protectedReason(process(1, "launchd")))
+        XCTAssertEqual(ActivityList.protectedReason(web), nil)
+        XCTAssertEqual(ActivityFormat.bytes(0), "0 KB")
+        XCTAssertEqual(ActivityFormat.bytes(512 * 1024), "512 KB")
+        XCTAssertEqual(ActivityFormat.bytes(1536 * 1024), "1.5 MB")
+        XCTAssertEqual(ActivityFormat.rate(2_500_000), "2.5 MB/s")
+        XCTAssertEqual(ActivityFormat.power(0.0421), "42 mW")
+        XCTAssertEqual(ActivityFormat.power(nil), "—")
+        XCTAssertEqual(ActivityFormat.duration(3723), "1:02:03")
+        XCTAssertEqual(ActivityFormat.duration(65), "1:05")
+        // Live: the first sample is a baseline; the second reads this process natively and launchd through ps.
+        let sampler = ActivitySampler()
+        XCTAssertTrue(sampler.sample(apps: []) == nil)
+        Thread.sleep(forTimeInterval: 0.3)
+        let live = sampler.sample(apps: [])!
+        let own = live.processes.first { $0.pid == getpid() }!
+        XCTAssertFalse(own.restricted); XCTAssertTrue(own.memory > 0); XCTAssertTrue((own.threads ?? 0) > 0); XCTAssertTrue(own.cpuTime > 0)
+        if getuid() != 0, let launchd = live.processes.first(where: { $0.pid == 1 }) {
+            XCTAssertTrue(launchd.restricted); XCTAssertEqual(launchd.user, "root"); XCTAssertTrue(launchd.memory > 0)
+        }
+        XCTAssertTrue(live.system.memoryUsed > 0 && live.system.memoryUsed <= live.system.memoryTotal)
+        XCTAssertEqual(live.system.cpuHistory.count, 1)
+        XCTAssertTrue(live.system.processCount == live.processes.count)
+        // The themed icon is written into a bundle as its custom Finder icon.
+        let bundle = FileManager.default.temporaryDirectory.appendingPathComponent("IconTest-\(UUID().uuidString).app")
+        try FileManager.default.createDirectory(at: bundle.appendingPathComponent("Contents"), withIntermediateDirectories: true)
+        let suite = "SnippetIconTest-" + UUID().uuidString, defaults = UserDefaults(suiteName: suite)!
+        defer { try? FileManager.default.removeItem(at: bundle); defaults.removePersistentDomain(forName: suite) }
+        XCTAssertEqual(ThemedIcon.bundleIconKey(ThemePalette.presets[2], development: false), "0D202D-61D4F2")
+        ThemedIcon.applyToBundle(ThemePalette.presets[2], bundle: bundle, defaults: defaults)
+        let marker = bundle.appendingPathComponent("Icon\r")
+        for _ in 0..<50 where !FileManager.default.fileExists(atPath: marker.path) { Thread.sleep(forTimeInterval: 0.1) }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: marker.path))
     }
     func testPowerTools() throws {
         XCTAssertEqual(SnippetTemplate.fields("Hi {{name}} {{date}} {{name}} {{project}} {{date:MMMM}} {{cursor}}"), ["name", "project"])
@@ -483,13 +554,15 @@ final class StoreTests {
         XCTAssertEqual(LauncherTab.command("3"), .calculator)
         XCTAssertEqual(LauncherTab.command("4"), .apps)
         XCTAssertEqual(LauncherTab.command("5"), .vault)
+        XCTAssertEqual(LauncherTab.command("6"), .activity)
         XCTAssertEqual(LauncherTab.command("9"), nil)
         let standard = LauncherTab.visible(vault: false), withVault = LauncherTab.visible(vault: true)
         XCTAssertFalse(standard.contains(.vault))
-        XCTAssertEqual(LauncherTab.history.cycled(backward: true, in: standard), .apps)
-        XCTAssertEqual(LauncherTab.apps.cycled(in: standard), .history)
+        XCTAssertEqual(LauncherTab.history.cycled(backward: true, in: standard), .activity)
+        XCTAssertEqual(LauncherTab.apps.cycled(in: standard), .activity)
+        XCTAssertEqual(LauncherTab.activity.cycled(in: standard), .history)
         XCTAssertEqual(LauncherTab.apps.cycled(in: withVault), .vault)
-        XCTAssertEqual(LauncherTab.vault.cycled(in: withVault), .history)
+        XCTAssertEqual(LauncherTab.vault.cycled(in: withVault), .activity)
         // Turning Vault off while it's showing returns to the first section.
         XCTAssertEqual(LauncherTab.vault.cycled(in: standard), .history)
     }
@@ -508,6 +581,10 @@ final class StoreTests {
         XCTAssertEqual(shortcuts.match(event(36), in: .calculator), .calculate)
         XCTAssertEqual(shortcuts.match(event(36), in: .launcher), .pasteResult)
         XCTAssertEqual(shortcuts.match(event(1, .command), in: .editor), .saveEditor)
+        XCTAssertEqual(shortcuts.match(event(22, .command), in: .launcher), .activity)
+        XCTAssertEqual(shortcuts.match(event(51, .command), in: .launcher), .quitProcess)
+        XCTAssertEqual(shortcuts.match(event(51, [.command, .option]), in: .launcher), .forceQuitProcess)
+        XCTAssertEqual(shortcuts.match(event(51, .command), in: .editor), nil)
         XCTAssertFalse(shortcuts.set(shortcuts[.clipboard], for: .snippets))
         XCTAssertNotNil(shortcuts.error)
         XCTAssertTrue(shortcuts.set(KeyBinding(19, [.command,.shift]), for: .snippets))

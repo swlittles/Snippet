@@ -4,9 +4,10 @@ import Carbon
 
 enum ShortcutContext { case launcher, calculator, editor, settings }
 enum ShortcutAction: String, CaseIterable, Identifiable, Codable {
-    case toggle, clipboard, snippets, calculator, apps, vault, nextSection, previousSection, workspace, enqueue, pasteNext
+    case toggle, clipboard, snippets, calculator, apps, vault, activity, nextSection, previousSection, workspace, enqueue, pasteNext
     case nextResult, previousResult, downResult, upResult, pasteResult, copyResult, newSnippet, saveSnippet, editSnippet, favorite, preview, settings, close
     case copyUsername, copyCode, lockVault
+    case quitProcess, forceQuitProcess
     case calculate, calculateEquals, copyCalculation, saveEditor, cancelEditor, closeSettings, quit
     case undo, redo, cut, copy, paste, selectAll
     var id: String { rawValue }
@@ -21,6 +22,9 @@ enum ShortcutAction: String, CaseIterable, Identifiable, Codable {
         case .calculator: return "Show Calculator"
         case .apps: return "Show Apps"
         case .vault: return "Show Vault"
+        case .activity: return "Show Activity"
+        case .quitProcess: return "Quit selected process"
+        case .forceQuitProcess: return "Force quit selected process"
         case .copyUsername: return "Copy username"
         case .copyCode: return "Copy verification code"
         case .lockVault: return "Lock vault"
@@ -57,8 +61,9 @@ enum ShortcutAction: String, CaseIterable, Identifiable, Codable {
     var group: String {
         switch self {
         case .toggle: return "Global"
-        case .clipboard, .snippets, .calculator, .apps, .vault, .nextSection, .previousSection: return "Sections"
+        case .clipboard, .snippets, .calculator, .apps, .vault, .activity, .nextSection, .previousSection: return "Sections"
         case .copyUsername, .copyCode, .lockVault: return "Vault"
+        case .quitProcess, .forceQuitProcess: return "Activity"
         case .calculate, .calculateEquals, .copyCalculation: return "Calculator"
         case .saveEditor, .cancelEditor: return "Editor"
         case .closeSettings, .quit, .settings: return "App"
@@ -72,7 +77,7 @@ enum ShortcutAction: String, CaseIterable, Identifiable, Codable {
         case .saveEditor, .cancelEditor: return [.editor]
         case .closeSettings: return [.settings]
         case .calculate, .calculateEquals, .copyCalculation: return [.calculator]
-        case .workspace, .clipboard, .snippets, .calculator, .apps, .vault, .nextSection, .previousSection, .newSnippet, .settings, .close: return [.launcher, .calculator]
+        case .workspace, .clipboard, .snippets, .calculator, .apps, .vault, .activity, .nextSection, .previousSection, .newSnippet, .settings, .close: return [.launcher, .calculator]
         default: return [.launcher]
         }
     }
@@ -88,6 +93,9 @@ enum ShortcutAction: String, CaseIterable, Identifiable, Codable {
         case .calculator: return .init(20, cmd)
         case .apps: return .init(21, cmd)
         case .vault: return .init(23, cmd)
+        case .activity: return .init(22, cmd)
+        case .quitProcess: return .init(51, cmd)
+        case .forceQuitProcess: return .init(51, [.command, .option])
         case .copyUsername: return .init(8, [.command, .shift])
         case .copyCode: return .init(17, [.command, .shift])
         case .lockVault: return .init(37, cmd)
@@ -241,7 +249,7 @@ struct ShortcutsSettingsView: View {
     @EnvironmentObject var shortcuts: ShortcutStore
     @EnvironmentObject var theme: ThemeStore
     @State private var reset = false
-    private let groups = ["Global", "Sections", "Clipboard and snippet results", "Vault", "Calculator", "Editor", "App", "Text editing"]
+    private let groups = ["Global", "Sections", "Clipboard and snippet results", "Vault", "Activity", "Calculator", "Editor", "App", "Text editing"]
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Click a shortcut, then press its new keys. Escape cancels recording. Changes save immediately.").font(.caption).foregroundStyle(theme.secondary)
